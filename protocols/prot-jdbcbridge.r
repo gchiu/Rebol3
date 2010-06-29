@@ -55,7 +55,7 @@ make-scheme [
 				; send the command and let the read event copy the data back
 				either string? cmd: client/spec/cmd [
 					write client to-binary  net-log/C join cmd crlf
-					wait client
+					read client
 				][
 					if block? client/spec/cmd [
 						; replace the place holders
@@ -67,7 +67,7 @@ make-scheme [
 							]
 						]
 						write client to-binary net-log/C  join cmd/1 crlf
-						wait client
+						read client
 					]
 				]
 			]
@@ -76,17 +76,11 @@ make-scheme [
 				probe length? client/data
 				append client/spec/data client/data
 				clear client/data
-				; a close event should now occur, but it's not!  So, we are replicating the code for the close event here.
-				; this won't work for lots of data
-				client/spec/data: load enline to-string client/spec/data
-				client/spec/close?: true
-				return true
+				read client
 			]
 			wrote [	
 				; query sent, let's get the response
 				read client
-				wait client
-				return true
 			]
 			close [
 				net-log "Server closed the Port"
@@ -159,6 +153,7 @@ make-scheme [
 			; we might have opened the port but not yet waited on it
 			port/state/connection/spec/cmd: copy data
 			; now wait on the port and use the connect event to send our query
+			wait port/state/connection
 			wait port/state/connection
 		]
 		
