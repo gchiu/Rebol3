@@ -1,8 +1,5 @@
 REBOL [
 	Title: "REBOL 3 HTTP protocol scheme"
-	Name: 'http
-	Type: 'module
-	Version: 0.1.0
 	File: %prot-http.r
 	Purpose: {
 		This program defines the HTTP protocol scheme for REBOL 3.
@@ -20,7 +17,7 @@ sync-op: func [port body /local state] [
 	unless port? wait [state/connection port/spec/timeout] [http-error "Timeout"] 
 	body: copy port 
 	if all [
-		select state/info/headers 'Content-Type 
+		in state/info/headers 'Content-Type 
 		state/info/headers/Content-Type 
 		parse state/info/headers/Content-Type [
 			"text/" thru "; charset=UTF-8"
@@ -128,7 +125,7 @@ make-http-request: func [
 	result: rejoin [
 		uppercase form method #" " 
 		either file? target [next mold target] [target] 
-		" HTTP/1.0" CRLF
+		" HTTP/1.1" CRLF
 	] 
 	foreach [word string] headers [
 		repend result [mold word #" " string CRLF]
@@ -149,7 +146,7 @@ do-request: func [
 ] [
 	spec: port/spec 
 	info: port/state/info 
-	spec/headers: body-of make make object! [
+	spec/headers: third make make object! [
 		Accept: "*/*" 
 		Accept-Charset: "utf-8" 
 		Host: either spec/port-id <> 80 [
@@ -360,7 +357,7 @@ check-data: func [port /local headers res data out chunk-size mk1 mk2 trailer st
 							crlfbin (trailer: "") to end | copy trailer to crlf2bin to end
 						] [
 							trailer: construct trailer 
-							append headers body-of trailer 
+							append headers third trailer 
 							state/state: 'ready 
 							res: state/awake make event! [type: 'custom port: port code: 0] 
 							clear data
