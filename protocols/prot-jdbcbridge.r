@@ -54,8 +54,7 @@ make-scheme [
 				net-log "connected"
 				; send the command and let the read event copy the data back
 				either string? cmd: client/spec/cmd [
-					net-log/C client/spec/cmd
-					write client to-binary join client/spec/cmd crlf
+					write client to-binary  net-log/C join cmd crlf
 					wait client
 				][
 					if block? client/spec/cmd [
@@ -119,7 +118,6 @@ make-scheme [
 				scheme: 'tcp
 				host: port/spec/host
 				port-id: port/spec/port-id
-				state: 'INIT
 				ref: rejoin [tcp:// host ":" port-id]
 				cmd: none ; will hold the commands we send
 				data: make binary! 0
@@ -182,6 +180,7 @@ make-scheme [
 			data: either source: port/state/connection/spec/data [
 				copy source
 			][ none ]
+			port/state/connection/spec/data: make binary! 0
 			data
 		]
 	]
