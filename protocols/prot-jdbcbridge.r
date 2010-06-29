@@ -3,6 +3,28 @@ Rebol [
 	author: "Graham"
 	rights: 'LGPL
 	date: 29-June-2010
+	notes: {
+		sample session. Note that at present you have to re-open the port each time for each query as the server starts a new thread for
+		each query and then terminates that thread.
+		
+		db: open jdbcbridge://localhost
+		insert db [{select * from staff where fullname = (?)} "Graham Chiu" ]
+		>> print length? db 
+		1
+		result: pick db 1
+		>> print length? db
+		0
+		close db
+		db: open jdbcbridge://localhost:8000
+		insert db {select first 2 * from staff}
+		>> print length? result
+		2
+		>> result: copy db
+		>> print length? result
+		0
+		close db
+	
+	}
 ]
 
 alpha: charset [#"a" - #"z" #"A" - #"Z"]
