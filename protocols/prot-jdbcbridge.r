@@ -1,33 +1,24 @@
 Rebol [
 	file: %prot-jdbc.r
-	author: "Graham"
+	author: "Graham Chiu"
 	rights: 'LGPL
 	date: 29-June-2010
 	notes: {
-		sample session. Note that at present you have to re-open the port each time for each query as the server starts a new thread for
-		each query and then terminates that thread.
+		sample session. 
 		
-		db: open jdbcbridge://localhost
-		insert db [{select * from staff where fullname = (?)} "Graham Chiu" ]
+		db: open jdbcbridge://www.compkarori.co.nz:8020
+		insert db [{select * from employee where full_name = (?)} "Guckenheimer, Mark"]
 		>> print length? db 
 		1
 		result: pick db 1
 		>> print length? db
 		0
+		insert db [ 'tables ]
+		insert db [ 'columns "Employee" ]
 		close db
-		db: open jdbcbridge://localhost:8000
-		insert db {select first 2 * from staff}
-		>> print length? result
-		2
-		>> result: copy db
-		>> print length? result
-		0
-		close db
-	
 	}
 ]
 
-alpha: charset [#"a" - #"z" #"A" - #"Z"]
 net-log: func [txt
 	/C
 	/S
@@ -36,6 +27,39 @@ net-log: func [txt
 	if S [prin "S: "]
 	print txt
 	txt
+]
+
+crlfbin: to-binary crlf
+
+clear-data: func [ port ][
+	port/state/connection/spec/data: make binary! 0
+	port/state/connection/data: none
+]
+
+write-cmd: funct [client] [
+	either string? cmd: client/spec/cmd [
+		write client to-binary net-log/C join cmd crlf
+		read client
+	] [
+		if block? cmd [
+			; see if the first command is a word, eg: [ columns "TABLENAME" ] looking for metadata
+			either any [word? cmd/1 lit-word? cmd/1] [
+				net-log "command is a word"
+				write client to-binary net-log/C join form reduce cmd crlf
+			] [
+				; replace the place holders
+				foreach var next cmd [
+					either any [string? var date? var] [
+						replace cmd/1 "(?)" rejoin ["'" var "'"]
+					] [
+						replace cmd/1 "(?)" var
+					]
+				]
+				write client to-binary net-log/C join cmd/1 crlf
+			]
+			read client
+		]
+	]
 ]
 
 make-scheme [
@@ -53,30 +77,21 @@ make-scheme [
 			connect [
 				net-log "connected"
 				; send the command and let the read event copy the data back
-				either string? cmd: client/spec/cmd [
-					write client to-binary  net-log/C join cmd crlf
-					read client
-				][
-					if block? client/spec/cmd [
-						; replace the place holders
-						foreach var next cmd [
-							either any [ string? var date? var ] [
-								replace cmd/1 "(?)" rejoin [ "'" var "'" ]
-							][
-								replace cmd/1 "(?)" var
-							]
-						]
-						write client to-binary net-log/C  join cmd/1 crlf
-						read client
-					]
-				]
+				write-cmd client
 			]
 			read [
 				net-log "read occurred"
 				probe length? client/data
 				append client/spec/data client/data
-				clear client/data
-				read client
+				; net-log/S to-string client/data
+				either find/last client/data crlfbin [
+					client/spec/data: load enline to-string client/spec/data
+					client/data: none ; make binary! 0
+					net-log "received end of line marker"
+					return true
+				][
+					read client
+				]
 			]
 			wrote [	
 				; query sent, let's get the response
@@ -136,6 +151,7 @@ make-scheme [
 			port [port!]
 		] [
 			if open? port [
+				insert port "QUIT" ; to-binary join "QUIT" crlf
 				close port/state/connection
 				port/state/connection/awake: none
 				port/state: none
@@ -144,6 +160,8 @@ make-scheme [
 		]
 		
 		insert: func [ port [port!] data [string! block!]][
+			; since the data is a molded rebol value we need too make sure it doesn't get corrupted 
+			clear-data port
 			if port/state/connection/spec/close? [
 				; need to re-open the port using the existing structures
 				; this doesn't seem to work
@@ -151,9 +169,15 @@ make-scheme [
 				net-log "re-opened the port??"
 			]
 			; we might have opened the port but not yet waited on it
-			port/state/connection/spec/cmd: copy data
-			; now wait on the port and use the connect event to send our query
-			wait port/state/connection
+			either none? port/state/connection/spec/cmd [
+				; no commands sent yet, so use the connect event to send
+				port/state/connection/spec/cmd: copy data
+				; now wait on the port and use the connect event to send our query
+				wait port/state/connection
+			][
+				port/state/connection/spec/cmd: copy data
+				write-cmd port/state/connection
+			]
 			wait port/state/connection
 		]
 		
@@ -162,21 +186,25 @@ make-scheme [
 		]
 		
 		pick: funct [ port [port!] index [integer!]][
-			either any [ index > length? port index <= 0 ][
-				none
-			][
-				data: pick port/state/connection/spec/data index
-				remove skip port/state/connection/spec/data index - 1
-				data
-			]
+			either open? port [
+				either any [ index > length? port index <= 0 ][
+					none
+				][
+					data: pick port/state/connection/spec/data index
+					remove skip port/state/connection/spec/data index - 1
+					data
+				]
+			][ none ]
 		]
 		
 		copy: funct [ port [port!] ][
-			data: either source: port/state/connection/spec/data [
-				copy source
+			either open? port [
+				data: either source: port/state/connection/spec/data [
+					copy source
+				][ none ]
+				clear-data port
+				data
 			][ none ]
-			port/state/connection/spec/data: make binary! 0
-			data
 		]
 	]
 ]
