@@ -2,7 +2,8 @@ Rebol [
 	file: %prot-jdbc.r
 	author: "Graham Chiu"
 	rights: 'LGPL
-	date: 29-June-2010
+	date:  [ 29-June-2010 3-July-2010 ]
+	version: 0.0.2
 	notes: {
 		sample session. 
 		
@@ -14,6 +15,7 @@ Rebol [
 		>> print length? db
 		0
 		insert db [ 'tables ]
+		insert db [ 'tables "MYTABLE" ]
 		insert db [ 'columns "Employee" ]
 		close db
 	}
@@ -49,10 +51,10 @@ write-cmd: funct [client] [
 			] [
 				; replace the place holders
 				foreach var next cmd [
-					either any [string? var date? var] [
-						replace cmd/1 "(?)" rejoin ["'" var "'"]
+					either any [string? var date? var word? var] [
+						replace cmd/1 "?" rejoin ["'" var "'"]
 					] [
-						replace cmd/1 "(?)" var
+						replace cmd/1 "?" var
 					]
 				]
 				write client to-binary net-log/C join cmd/1 crlf
