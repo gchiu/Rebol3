@@ -1,9 +1,16 @@
 Rebol [
-	file: %prot-jdbc.r
+	file: %prot-jdbcbridge.r
 	author: "Graham Chiu"
 	rights: 'LGPL
-	date:  [ 29-June-2010 3-July-2010 ]
-	version: 0.0.2
+	date:  [ 29-June-2010 3-July-2010 7-July-2010 ]
+	version: 0.0.3
+	changes: {
+		metadata is returned immediately
+		selects return the number of rows
+		Data is only transferred on pick, or a copy
+		eg. insert db {pick 5000}
+		insert db {copy 100} ; this moves the cursor to the end of this query ready for another copy
+	}
 	notes: {
 		sample session. 
 		
@@ -20,6 +27,10 @@ Rebol [
 		close db
 	}
 ]
+
+digit: charset [ #"0" - #"9" ]
+digits: [ some digit ]
+space: charset [ #" " ]
 
 net-log: func [txt
 	/C
@@ -50,7 +61,7 @@ write-cmd: funct [client] [
 				write client to-binary net-log/C join form reduce cmd crlf
 			] [
 				; replace the place holders
-				foreach var next cmd [
+				foreach var reduce next cmd [
 					either any [string? var date? var word? var] [
 						replace cmd/1 "?" rejoin ["'" var "'"]
 					] [
@@ -68,6 +79,8 @@ make-scheme [
 	name: 'jdbcbridge
 	title: "JDBC Bridge Protocol"
 	spec: make system/standard/port-spec-net [port-id: 8000]
+	count: 0
+	rows: 0
 	awake: func [event /local client response state code result cmd] [
 		print ["=== Client event:" event/type]
 		client: event/port
@@ -84,6 +97,7 @@ make-scheme [
 			read [
 				net-log "read occurred"
 				probe length? client/data
+comment {
 				append client/spec/data client/data
 				; net-log/S to-string client/data
 				either find/last client/data crlfbin [
@@ -94,6 +108,33 @@ make-scheme [
 				][
 					read client
 				]
+}
+				if client/spec/data = #{} [
+					; grab the count
+					probe to-string client/data
+					charcount: rows: none
+					if parse to-string client/data [ copy charcount digits space opt [ "rows" space 	copy rows digits ] to end ][
+						either rows [
+							client/spec/rows: to-integer rows
+						][
+							remove/part client/data 1 + length? charcount
+						]
+					]
+					; remove/part client/data 1 + length? charcount
+					charcount: to-integer charcount
+				]
+				if none? rows [
+					append client/spec/data client/data
+				]
+				client/data: none
+				probe length? client/spec/data
+				if rows [ return true ]
+				either charcount <= length? client/spec/data [
+					attempt [
+						client/spec/data: load enline to-string client/spec/data
+					]
+					return true
+				][ read client ]
 			]
 			wrote [	
 				; query sent, let's get the response
@@ -133,6 +174,7 @@ make-scheme [
 				cmd: none ; will hold the commands we send
 				data: make binary! 0
 				close?: no
+				rows: none
 			]
 			conn/awake: :awake
 			open conn
