@@ -1,13 +1,71 @@
 Rebol [
-	file: %prot-smtp.r
+	system: "Rebol [R3] Language interpreter"
+	title: "Rebol 3 SMTP scheme"
 	author: "Graham"
-	date: 9-Jan-2010
+	date: [ 9-Jan-2010 20-Jan-2013 ]
 	rights: 'BSD
+	name: 'smtp
+	type: 'module
+	version: 0.0.1
+	file: %prot-smtp.r
+	notes: {
+		0.0.1 original tested in 2010
+		0.0.2 updated for the open source versions
+		0.0.3 Changed to use a synchronous mode rather than async.  Authentication not yet supported
+		
+		synchronous mode
+		write smtp://smtp.clear.net.nz [ 
+			esmtp-user: 
+			esmtp-pass: 
+			ehlo: ; defaults to "Rebol PC" if a FQDN is not supplied
+			from:
+			name:
+			to: 
+			subject:
+			message: 
+		]
+
+		eg: write smtp://smtp.yourisp.com compose [
+			from: me@somewhere.com
+			to: recipient@wher.com
+			ehlo: "my-rebol-development-pc or fqdn"
+			message: (message)
+		]
+		
+		Where message is an email with all the appropriate headers.
+		In Rebol2, this was constructed by the 'send function
+		
+		If you need to use smtp asynchronously, you supply your own awake handler
+		
+		p: open smtp://smtp.provider.com
+		p/state/connection/awake: :my-async-handler
+	}
 ]
+
+mail-obj: make object! [ 
+			esmtp-user: 
+			esmtp-pass: 
+			from:
+			name:
+			to: 
+			subject:
+			ehlo:
+			message: none
+]
+
+make-smtp-error: func [
+	message
+][
+	do make error! [
+		type: 'Access
+		id: 'Protocol
+		arg1: message
+	]
+]
+
 
 auth-methods: copy []
 alpha: charset [#"a" - #"z" #"A" - #"Z"]
-ehlo-msg: "my-r3-developement-pc"
 net-log: func [txt
 	/C
 	/S
@@ -18,23 +76,10 @@ net-log: func [txt
 	txt
 ]
 
-email: myemail@localisp.com
-recipient: myemail@gmail.com
-myname: "Joe Bloggs"
-
-message: rejoin [ {To: } recipient {
-From: } myname { <} email {>
-Date: Sat, 9 Jan 2010 14:51:07 +1300
-Subject: testing from r3
-X-REBOL: REBOL3 Alpha
-
-testing from r3 2}]
-
-make-scheme [
-	name: 'smtp
-	title: "SMTP Protocol"
-	spec: make system/standard/port-spec-net [port-id: 25]
-	awake: func [event /local client response state code] [
+sync-smtp-handler: func [ event 
+		/local client response state code line-response
+	] [
+		line-response: none
 		print ["=== Client event:" event/type]
 		client: event/port
 		switch event/type [
@@ -44,13 +89,10 @@ make-scheme [
 			]
 			connect [
 				net-log "connected"
-				; need to write to the client to trigger flow of data
-				; write client to-binary net-log/C rejoin ["EHLO " ehlo-msg CRLF]
-				; write client to-binary net-log/C rejoin [ "NOOP " crlf ]
-				; now ready for the next state
 				client/spec/state: 'EHLO
-				system/contexts/system/read client
+				read client
 			]
+
 			read [
 				net-log/S response: enline to-string client/data
 				code: copy/part response 3
@@ -58,29 +100,29 @@ make-scheme [
 					INIT [
 						if find/part response "220 " 4 [
 							; wants me to send EHLO
-							write client to-binary net-log/C rejoin ["EHLO " ehlo-msg CRLF]
+							write client to-binary net-log/C rejoin ["EHLO " any [ client/spec/email/ehlo "Rebol-PC" ] CRLF]
 							client/spec/state: 'AUTH
 						]
 					]
 					EHLO [
 						if find/part response "220 " 4 [
 							; wants me to send EHLO
-							write client to-binary net-log/C rejoin ["EHLO " ehlo-msg CRLF]
+							write client to-binary net-log/C rejoin ["EHLO " any [ client/spec/email/ehlo "Rebol-PC" ] CRLF]
 							client/spec/state: 'AUTH
 						]
 					]
 					AUTH [
 						if find/part response "220 " 4 [
 							; wants me to send EHLO
-							write client to-binary net-log/C rejoin ["EHLO " ehlo-msg CRLF]
+							write client to-binary net-log/C rejoin ["EHLO " any [ client/spec/email/ehlo "Rebol-PC" ] CRLF]
 						]
 						; should get this massive string
 						if code = "250" [
 							parse/all response [
 								some [
-									copy test to CRLF (
-										parse/all test [
-											"250" ["-" | " " (client/spec/state: first any [find auth-methods 'plain find auth-methods 'login find auth-methods 'cram])]
+									copy line-response to CRLF (
+										parse/all line-response [
+											"250" ["-" | " " ( print "1" client/spec/state: first any [find auth-methods 'plain find auth-methods 'login find auth-methods 'cram])]
 											["AUTH" [" " | "="]
 												[
 													"CRAM-MD5" (append auth-methods 'cram) |
@@ -88,7 +130,7 @@ make-scheme [
 													"LOGIN" (append auth-methods 'login) |
 													some alpha
 												] |
-												copy unwanted some alpha
+												some alpha
 											]
 											thru CRLF
 										]
@@ -97,11 +139,12 @@ make-scheme [
 							]
 						]
 						if client/spec/state != 'AUTH [
+							; authentication methods not supported yet .. need to find a server to test with
 							switch client/spec/state [
 								PLAIN [
 									; not going to authenticate at present
 									client/spec/state: 'FROM
-									write client to-binary net-log/C rejoin ["MAIL FROM: <" email ">" CRLF]
+									write client to-binary net-log/C rejoin ["MAIL FROM: <" client/spec/email/from ">" CRLF]
 								]
 								LOGIN []
 								CRAM []
@@ -110,7 +153,7 @@ make-scheme [
 					]
 					FROM [
 						either code = "250" [
-							write client to-binary net-log/C rejoin ["RCPT TO: <" recipient ">" crlf]
+							write client to-binary net-log/C rejoin ["RCPT TO: <" client/spec/email/to ">" crlf]
 							client/spec/state: 'TO
 						] [
 							net-log "rejected by server"
@@ -128,8 +171,8 @@ make-scheme [
 					]
 					DATA [
 						either code = "354" [
-							replace/all message "^/." "^/.."
-							write client to-binary net-log/C rejoin [ enline message crlf "." crlf ]
+							replace/all client/spec/email/message "^/." "^/.."
+							write client to-binary net-log/C rejoin [ enline client/spec/email/message crlf "." crlf ]
 							client/spec/state: 'END
 						] [
 							net-log "Not allowing us to send ... quitting"
@@ -157,20 +200,48 @@ make-scheme [
 		]
 		false
 	]
+
+sync-write: func [ port [port!] body
+	/local state result
+][
+	unless port/state [ open port port/state/close?: yes ]
+	state: port/state
+	; construct the email from the specs 
+	port/state/connection/spec/email: construct/with body mail-obj
+	port/state/connection/awake: :sync-smtp-handler
+	if state/state = 'ready [ 
+		; the read gets the data from the smtp server and triggers the events that follow that is handled by our state engine in the sync-smtp-handler
+		read port 
+	]
+	unless port? wait [ state/connection port/spec/timeout ] [ make error! "SMTP timeout" ]
+	if state/close? [ close port ]
+	true
+]
+	
+sys/make-scheme [
+	name: 'smtp
+	title: "SMTP Protocol"
+	spec: make system/standard/port-spec-net [
+		port-id: 25
+		timeout: 60
+		email: none ;-- object constructed from argument
+	]
 	actor: [
 		open: func [
 			port [port!]
 			/local conn
 		] [
 			if port/state [return port]
-			if none? port/spec/host [http-error "Missing host address"]
-			; set the port state
+			if none? port/spec/host [
+				make-smtp-error "Missing host address when opening smtp server"
+			]
+			; set the port state to hold the tcp port
 			port/state: context [
 				state:
 				connection:
 				error: none
-				awake: none ;:port/awake
-				close?: no
+				awake: none  ;-- so port/state/awake will hold the awake handler :port/awake
+				close?: no   ;-- flag for us to decide whether to close the port eg in syn mode
 			]
 			; create the tcp port and set it to port/state/connection
 			port/state/connection: conn: make port! [
@@ -179,9 +250,12 @@ make-scheme [
 				port-id: port/spec/port-id
 				state: 'INIT
 				ref: rejoin [tcp:// host ":" port-id]
+				email: port/spec/email
 			]
-			conn/awake: :awake
-			open conn
+			open conn ;-- open the actual tcp port
+;			conn/awake: :async-smtp-handler 	
+;			port/awake: :async-smtp-handler		
+			
 			print "port opened ..."
 			; return the newly created and open port
 			port
@@ -205,22 +279,28 @@ make-scheme [
 
 		read: func [
 			port [port!]
-			/local conn
 		] [
 			either any-function? :port/awake [
-				; unless open? port [cause-error 'Access 'not-open port/spec/ref]
 				either not open? port [
 					print "opening & waiting on port"
-					wait open port/state/connection
+					unless port? wait [open port/state/connection port/spec/timeout] [make-smtp-error "Timeout"]
+					; wait open port/state/connection
 				] [
 					print "waiting on port"
-					wait port/state/connection
+					unless port? wait [ port/state/connection port/spec/timeout] [make-smtp-error "Timeout"]
 				]
 				port
 			] [
-				print "doing something sync"
-				; do something synchronous here
+				print "No handler for the port exists yet"
+				; should this be used at all for smtp?
 			]
+		]
+
+		write: func [
+			port [port!] body [block!]
+			/local conn email
+		][
+			sync-write port body
 		]
 	]
 ]
