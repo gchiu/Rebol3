@@ -6,12 +6,13 @@ Rebol [
 	rights: 'BSD
 	name: 'smtp
 	type: 'module
-	version: 0.0.1
+	version: 0.0.4
 	file: %prot-smtp.r
 	notes: {
 		0.0.1 original tested in 2010
 		0.0.2 updated for the open source versions
 		0.0.3 Changed to use a synchronous mode rather than async.  Authentication not yet supported
+		0.0.4 Added LOGIN, PLAIN and CRAM-MD5 authentication.  Tested against CommunigatePro
 		
 		synchronous mode
 		write smtp://smtp.clear.net.nz [ 
@@ -63,8 +64,7 @@ make-smtp-error: func [
 	]
 ]
 
-
-auth-methods: copy []
+; auth-methods: copy []
 alpha: charset [#"a" - #"z" #"A" - #"Z"]
 net-log: func [txt
 	/C
@@ -76,13 +76,29 @@ net-log: func [txt
 	txt
 ]
 
+comment {
+message: rejoin [ {To: } tintin@gmail.com {
+From: } "Snowy" { <} milou@yahoo.com {>
+Date: Sat, 9 Jan 2010 14:51:07 +1300
+Subject: testing from r3
+X-REBOL: REBOL3 Alpha
+
+where's my kibble?}]
+}
+
 sync-smtp-handler: func [ event 
-		/local client response state code line-response
+		/local client response state code line-response auth-key auth-methods
 	] [
 		line-response: none
+		auth-methods: copy []
 		print ["=== Client event:" event/type]
 		client: event/port
 		switch event/type [
+			error [
+				net-log "Network error"
+				close client
+				return true
+			]
 			lookup [
 				; print "DNS lookup"
 				open client
@@ -110,45 +126,117 @@ sync-smtp-handler: func [ event
 							write client to-binary net-log/C rejoin ["EHLO " any [ client/spec/email/ehlo "Rebol-PC" ] CRLF]
 							client/spec/state: 'AUTH
 						]
+						if find/part response "5" 1 [
+							net-log join "Server error code: " response
+							client/spec/state: 'END
+							return true
+						]
+						if find/part response "4" 1 [
+							net-log join  "Server error code: " response
+							client/spec/state: 'END
+							return true
+						]
+					]
+					LOGIN [
+						case [
+							find/part response "334 VXNlcm5hbWU6" 16 [
+								; username being requested
+								write client to-binary net-log/C join enbase client/spec/email/esmtp-user CRLF
+							]
+							find/part response "334 UGFzc3dvcmQ6" 16 [
+								; pass being requested
+								write client to-binary net-log/C join enbase client/spec/email/esmtp-pass CRLF
+								client/spec/state: 'PASSWORD
+							]
+							true [
+								make-smtp-error join "Unknown response in AUTH LOGIN " response						
+							]
+						]
+
+					]
+					
+					CRAM-MD5 [
+						case [
+							find/part response "334 " 4 [
+								auth-key: skip response 4
+								auth-key: debase auth-key
+								; compute challenge response
+								auth-key: checksum/method/key auth-key 'md5 client/spec/email/esmtp-pass
+								write client to-binary net-log/C join 
+								enbase reform [client/spec/email/esmtp-user lowercase enbase/base auth-key 16] CRLF
+								client/spec/state: 'PASSWORD
+							]
+							true [ 
+								make-smtp-error join "Unknown response in AUTH CRAM-MD5 " response						
+							]
+						]
+					]
+					
+					
+					PASSWORD [
+						either find/part response "235 " 4 [
+							client/spec/state: 'FROM
+							write client to-binary net-log/C rejoin ["MAIL FROM: <" client/spec/email/from ">" CRLF	]
+						][
+							;-- failed authentication so close
+							make-smtp-error "Failed authentication"
+						]
 					]
 					AUTH [
 						if find/part response "220 " 4 [
 							; wants me to send EHLO
 							write client to-binary net-log/C rejoin ["EHLO " any [ client/spec/email/ehlo "Rebol-PC" ] CRLF]
 						]
-						; should get this massive string
+						; should get a long string with all the options including authentication methods.
 						if code = "250" [
+							clear head auth-methods
 							parse/all response [
 								some [
 									copy line-response to CRLF (
 										parse/all line-response [
-											"250" ["-" | " " ( print "1" client/spec/state: first any [find auth-methods 'plain find auth-methods 'login find auth-methods 'cram])]
-											["AUTH" [" " | "="]
-												[
-													"CRAM-MD5" (append auth-methods 'cram) |
-													"PLAIN LOGIN" (append auth-methods 'plain) |
-													"LOGIN" (append auth-methods 'login) |
-													some alpha
-												] |
-												some alpha
-											]
-											thru CRLF
-										]
-									) crlf
+"250" 
+["-" | " " ] 
+["AUTH" [" " | "="]
+any
+[ 
+	"CRAM-MD5" (append auth-methods 'cram) |
+	"PLAIN" (append auth-methods 'plain) |
+	"LOGIN" (append auth-methods 'login) |
+	space |
+	some alpha
+] 
+| some alpha thru CRLF ]
+]) crlf
 								]
 							]
+							;?? auth-methods
+							
+							if find auth-methods 'plain [ client/spec/state: 'PLAIN ]
+							if find auth-methods 'login [ client/spec/state: 'LOGIN ]
+							if find auth-methods 'cram [ client/spec/state: 'CRAM-MD5 ]
 						]
+						
+						; should now have switched from AUTH to a type of authentication
 						if client/spec/state != 'AUTH [
-							; authentication methods not supported yet .. need to find a server to test with
-							switch client/spec/state [
+							switch/default client/spec/state [
 								PLAIN [
-									; not going to authenticate at present
-									client/spec/state: 'FROM
-									write client to-binary net-log/C rejoin ["MAIL FROM: <" client/spec/email/from ">" CRLF]
+									write client to-binary net-log/C rejoin [ "AUTH PLAIN " enbase rejoin [client/spec/email/esmtp-user #"^@" client/spec/email/esmtp-user #"^@" client/spec/email/esmtp-pass] CRLF  ]
+									client/spec/state: 'PASSWORD
+									]
+								LOGIN [
+									; tell the server we are going to use AUTH LOGIN
+									write client to-binary net-log/C join "AUTH LOGIN" CRLF
+									client/spec/state: 'LOGIN
 								]
-								LOGIN []
-								CRAM []
+								CRAM-MD5 [
+									; tell server we are using CRAM-MD5
+									write client to-binary net-log/C join "AUTH CRAM-MD5" CRLF
+									client/spec/state: 'CRAM-MD5	
+								]
+							][
+								smtp-error "No supported authentication method"							
 							]
+							; authentication is now handled by the main state loop except for Plain
 						]
 					]
 					FROM [
