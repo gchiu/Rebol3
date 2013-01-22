@@ -6,19 +6,18 @@ Rebol [
 	rights: 'BSD
 	name: 'smtp
 	type: 'module
-	version: 0.0.4
+	version: 0.0.6
 	file: %prot-smtp.r
 	notes: {
 		0.0.1 original tested in 2010
 		0.0.2 updated for the open source versions
 		0.0.3 Changed to use a synchronous mode rather than async.  Authentication not yet supported
 		0.0.4 Added LOGIN, PLAIN and CRAM-MD5 authentication.  Tested against CommunigatePro
+		0.0.5 Changed to move credentials to the url or port specification
+		0.0.6 Fixed some bugs in transferring email greater than the buffer size.
 		
 		synchronous mode
-		write smtp://smtp.clear.net.nz [ 
-			esmtp-user: 
-			esmtp-pass: 
-			ehlo: ; defaults to "Rebol PC" if a FQDN is not supplied
+		write smtp://user:password@smtp.clear.net.nz [ 
 			from:
 			name:
 			to: 
@@ -26,10 +25,31 @@ Rebol [
 			message: 
 		]
 
-		eg: write smtp://smtp.yourisp.com compose [
+		name, and subject are not currently used and may be removed
+		
+		eg: write smtp://user:password@smtp.yourisp.com compose [
 			from: me@somewhere.com
-			to: recipient@wher.com
-			ehlo: "my-rebol-development-pc or fqdn"
+			to: recipient@other.com
+			message: (message)
+		]
+
+		message: rejoin [ {To: } recipient@other.com {
+From: } "R3 User" { <} me@somewhere.com {>
+Date: Mon, 21 Jan 2013 17:45:07 +1300
+Subject: testing from r3
+X-REBOL: REBOL3 Alpha
+
+where's my kibble?}]
+		
+		write [ 
+			scheme: 'smtp 
+			host: "smtp.yourisp.com"
+			user: "joe"
+			pass: "password"
+			ehlo: "FQDN"
+		] compose [
+			from: me@somewhere.com
+			to: recipient@other.com
 			message: (message)
 		]
 		
@@ -43,14 +63,13 @@ Rebol [
 	}
 ]
 
+bufsize: 32000 ;-- use a write buffer of 32k for sending large attachments
+
 mail-obj: make object! [ 
-			esmtp-user: 
-			esmtp-pass: 
-			from:
-			name:
-			to: 
+			from: 
+			to:
+			name: 
 			subject:
-			ehlo:
 			message: none
 ]
 
@@ -76,22 +95,13 @@ net-log: func [txt
 	txt
 ]
 
-comment {
-message: rejoin [ {To: } tintin@gmail.com {
-From: } "Snowy" { <} milou@yahoo.com {>
-Date: Sat, 9 Jan 2010 14:51:07 +1300
-Subject: testing from r3
-X-REBOL: REBOL3 Alpha
-
-where's my kibble?}]
-}
-
 sync-smtp-handler: func [ event 
-		/local client response state code line-response auth-key auth-methods
+		/local client response state code line-response auth-key auth-methods ptr
 	] [
 		line-response: none
 		auth-methods: copy []
 		print ["=== Client event:" event/type]
+		; client is the real port ie. port/state/connection
 		client: event/port
 		switch event/type [
 			error [
@@ -112,18 +122,21 @@ sync-smtp-handler: func [ event
 			read [
 				net-log/S response: enline to-string client/data
 				code: copy/part response 3
+				if code = "501" [
+					make-smtp-error join "Unknown server error " response
+				]
 				switch/default client/spec/state [
 					INIT [
 						if find/part response "220 " 4 [
 							; wants me to send EHLO
-							write client to-binary net-log/C rejoin ["EHLO " any [ client/spec/email/ehlo "Rebol-PC" ] CRLF]
+							write client to-binary net-log/C rejoin ["EHLO " any [ client/spec/ehlo "Rebol-PC" ] CRLF]
 							client/spec/state: 'AUTH
 						]
 					]
 					EHLO [
 						if find/part response "220 " 4 [
 							; wants me to send EHLO
-							write client to-binary net-log/C rejoin ["EHLO " any [ client/spec/email/ehlo "Rebol-PC" ] CRLF]
+							write client to-binary net-log/C rejoin ["EHLO " any [ client/spec/ehlo "Rebol-PC" ] CRLF]
 							client/spec/state: 'AUTH
 						]
 						if find/part response "5" 1 [
@@ -141,11 +154,11 @@ sync-smtp-handler: func [ event
 						case [
 							find/part response "334 VXNlcm5hbWU6" 16 [
 								; username being requested
-								write client to-binary net-log/C join enbase client/spec/email/esmtp-user CRLF
+								write client to-binary net-log/C join enbase client/spec/user CRLF
 							]
 							find/part response "334 UGFzc3dvcmQ6" 16 [
 								; pass being requested
-								write client to-binary net-log/C join enbase client/spec/email/esmtp-pass CRLF
+								write client to-binary net-log/C join enbase client/spec/pass CRLF
 								client/spec/state: 'PASSWORD
 							]
 							true [
@@ -161,9 +174,9 @@ sync-smtp-handler: func [ event
 								auth-key: skip response 4
 								auth-key: debase auth-key
 								; compute challenge response
-								auth-key: checksum/method/key auth-key 'md5 client/spec/email/esmtp-pass
+								auth-key: checksum/method/key auth-key 'md5 client/spec/pass
 								write client to-binary net-log/C join 
-								enbase reform [client/spec/email/esmtp-user lowercase enbase/base auth-key 16] CRLF
+								enbase reform [client/spec/user lowercase enbase/base auth-key 16] CRLF
 								client/spec/state: 'PASSWORD
 							]
 							true [ 
@@ -171,7 +184,6 @@ sync-smtp-handler: func [ event
 							]
 						]
 					]
-					
 					
 					PASSWORD [
 						either find/part response "235 " 4 [
@@ -182,10 +194,11 @@ sync-smtp-handler: func [ event
 							make-smtp-error "Failed authentication"
 						]
 					]
+										
 					AUTH [
 						if find/part response "220 " 4 [
 							; wants me to send EHLO
-							write client to-binary net-log/C rejoin ["EHLO " any [ client/spec/email/ehlo "Rebol-PC" ] CRLF]
+							write client to-binary net-log/C rejoin ["EHLO " any [ client/spec/ehlo "Rebol-PC" ] CRLF]
 						]
 						; should get a long string with all the options including authentication methods.
 						if code = "250" [
@@ -209,18 +222,23 @@ any
 ]) crlf
 								]
 							]
-							;?? auth-methods
-							
 							if find auth-methods 'plain [ client/spec/state: 'PLAIN ]
 							if find auth-methods 'login [ client/spec/state: 'LOGIN ]
 							if find auth-methods 'cram [ client/spec/state: 'CRAM-MD5 ]
 						]
-						
+
 						; should now have switched from AUTH to a type of authentication
 						if client/spec/state != 'AUTH [
+							; some servers will let you send without authentication if you're hosted on their network
+							either all [
+								none? client/spec/user
+								none? client/spec/pass
+							][
+								client/spec/state: 'FROM
+								write client to-binary net-log/C rejoin ["MAIL FROM: <" client/spec/email/from ">" CRLF]					   ][
 							switch/default client/spec/state [
 								PLAIN [
-									write client to-binary net-log/C rejoin [ "AUTH PLAIN " enbase rejoin [client/spec/email/esmtp-user #"^@" client/spec/email/esmtp-user #"^@" client/spec/email/esmtp-pass] CRLF  ]
+									write client to-binary net-log/C rejoin [ "AUTH PLAIN " enbase rejoin [client/spec/user #"^@" client/spec/user #"^@" client/spec/pass] CRLF  ]
 									client/spec/state: 'PASSWORD
 									]
 								LOGIN [
@@ -234,9 +252,10 @@ any
 									client/spec/state: 'CRAM-MD5	
 								]
 							][
-								smtp-error "No supported authentication method"							
+								make-smtp-error "No supported authentication method"							
 							]
 							; authentication is now handled by the main state loop except for Plain
+							]
 						]
 					]
 					FROM [
@@ -260,13 +279,16 @@ any
 					DATA [
 						either code = "354" [
 							replace/all client/spec/email/message "^/." "^/.."
-							write client to-binary net-log/C rejoin [ enline client/spec/email/message crlf "." crlf ]
-							client/spec/state: 'END
+							client/spec/email/message: ptr: rejoin [ enline client/spec/email/message ]
+							net-log/C "sending 32K"
+							write client copy/part ptr bufsize
+							remove/part ptr bufsize
+							client/spec/state: 'SENDING
 						] [
 							net-log "Not allowing us to send ... quitting"
-
 						]
 					]
+					
 					END [
 						either code = "250" [
 							net-log "message successfully sent."
@@ -283,12 +305,25 @@ any
 					]
 				] [net-log join "Unknown state " client/spec/state]
 			]
-			wrote [read client]
+			wrote [
+				either client/spec/state = 'SENDING [
+					either not empty? ptr: client/spec/email/message [
+						net-log/C [ "sending " min bufsize length? ptr " bytes of " length? ptr ]
+						write client to-binary copy/part ptr bufsize
+						remove/part ptr bufsize
+					][
+						write client to-binary net-log/C rejoin [ crlf "." crlf ]
+						client/spec/state: 'END
+					]
+				][
+					read client
+				]
+			]
 			close [net-log "Port closed on me"]
 		]
 		false
 	]
-
+	
 sync-write: func [ port [port!] body
 	/local state result
 ][
@@ -296,6 +331,7 @@ sync-write: func [ port [port!] body
 	state: port/state
 	; construct the email from the specs 
 	port/state/connection/spec/email: construct/with body mail-obj
+	
 	port/state/connection/awake: :sync-smtp-handler
 	if state/state = 'ready [ 
 		; the read gets the data from the smtp server and triggers the events that follow that is handled by our state engine in the sync-smtp-handler
@@ -312,7 +348,10 @@ sys/make-scheme [
 	spec: make system/standard/port-spec-net [
 		port-id: 25
 		timeout: 60
-		email: none ;-- object constructed from argument
+		email: ;-- object constructed from argument
+		ehlo: 
+		user:
+		pass: none
 	]
 	actor: [
 		open: func [
@@ -339,10 +378,11 @@ sys/make-scheme [
 				state: 'INIT
 				ref: rejoin [tcp:// host ":" port-id]
 				email: port/spec/email
+				user: port/spec/user
+				pass: port/spec/pass
+				ehlo: any [ port/spec/ehlo "Rebol3 User PC" ]
 			]
 			open conn ;-- open the actual tcp port
-;			conn/awake: :async-smtp-handler 	
-;			port/awake: :async-smtp-handler		
 			
 			print "port opened ..."
 			; return the newly created and open port
