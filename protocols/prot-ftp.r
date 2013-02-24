@@ -6,7 +6,7 @@ Rebol [
 	rights: 'BSD
 	name: 'ftp
 	type: 'module
-	version: 0.0.91
+	version: 0.0.92
 	file: %prot-ftp.r
 	notes: {
 		See script at end
@@ -495,8 +495,6 @@ sys/make-scheme [
 			port [port!]
 			/local conn
 		] [
-			probe port/spec
-		
 			if port/state [return port]
 			if none? port/spec/host [
 				make error! [
