@@ -1,20 +1,30 @@
 Rebol [
-	file: %prot-ftp.r
+	system: "Rebol [R3] Language interpreter"
+	title: "Rebol 3 FTP scheme"
 	author: [ "Graham Chiu" "Andreas Bolka" ]
-	date: [10-Jan-2010 .. 12-Jan-2010]
-	version: 0.0.9
+	date: [ 10-Jan-2010 24-Feb-2013 ]
 	rights: 'BSD
+	name: 'ftp
+	type: 'module
+	version: 0.0.91
+	file: %prot-ftp.r
 	notes: {
 		See script at end
 		Needs to have actor abstractions written ...
+		24-Feb-2013 changed to using integer codes instead of string
 	}
 ]
+; from dockimbel
+digit4: charset "01234"
+digit5: union digit4 charset "5"
+byte: ["2" ["5" digit5 | digit4 digit] | "1" 2 digit | 2 digit | digit]
 
 alpha: charset [#"a" - #"z" #"A" - #"Z"]
 digit: charset [#"0" - #"9"]
 non-digit: complement digit
 non-digits: [some non-digit]
-pasv-rule: [1 3 digit "," 1 3 digit "," 1 3 digit "," 1 3 digit "," opt ["-"] 1 3 digit "," opt ["-"] 1 3 digit]
+pasv-rule: [ 4 [byte "," ] opt ["-"] 1 3 digit "," opt ["-"] 1 3 digit ]
+; pasv-rule: [1 3 digit "," 1 3 digit "," 1 3 digit "," 1 3 digit "," opt ["-"] 1 3 digit "," opt ["-"] 1 3 digit]
 within?: func [low hi code] [
 	all [code >= low code <= hi]
 ]
@@ -43,8 +53,8 @@ parse-files: func [
 		add-date digits no-newline ftp-nlist reduced
 		scopy sremove
 	] [
-		scopy: :system/contexts/system/copy
-		sremove: :system/contexts/system/remove
+		scopy: :copy ;:system/contexts/system/copy
+		sremove: :remove ; :system/contexts/system/remove
 		result: scopy []
 		digit: charset "0123456789"
 		char: charset [#"a" - #"z" #"A" - #"Z" #"0" - #"9" "=+-_.:&$*',"]
@@ -145,14 +155,14 @@ comment {
 
 process-code: func [code client [port!]] [
 	case [
-		within? "100" "199" code [
+		within? 100 199 code [
 			net-log rejoin ["received mark code " code]
 		]
-		within? "200" "399" code [
+		within? 200 399  code [
 			net-log rejoin ["received unknown acceptance code " code]
 			client/spec/ready: true
 		]
-		within? "400" "599" code [
+		within? 400 599 code [
 			net-log rejoin ["received rejection code " code]
 			client/spec/ready: true
 		]
@@ -214,13 +224,13 @@ write-cmdport: funct [cmdport
 	]
 ]
 
-make-scheme [
+sys/make-scheme [
 	name: 'ftp
 	title: "FTP Protocol"
 	spec: make system/standard/port-spec-net [port-id: 21]
 
 
-	awake: funct [event /local client response state code] [
+	awake: funct [event /local client response state code ip] [
 		print ["=== Client event:" event/type]
 		client: event/port
 		switch event/type [
@@ -238,7 +248,7 @@ make-scheme [
 			read [
 				net-log/S response: enline to-string client/data
 				clear client/data
-				code: copy/part response 4
+				parse/all response [ copy code 3 digit (code: to integer! code) [ space | #"-" ] to end ]
 				net-log code
 				net-log client/spec/state
 
@@ -248,15 +258,15 @@ make-scheme [
 					]
 					AUTH [
 						switch/default code [
-							"220 " [
+							220 [
 								print "asking for user .."
 								cmd-write client reduce ['USER client/spec/user]
 							]
-							"331 " [
+							331 [
 								print "asking for pass ..."
 								cmd-write client reduce ['PASS client/spec/pass]
 							]
-							"230 " [
+							230 [
 								print "logged in okay"
 								client/spec/ready: true
 							]
@@ -265,29 +275,29 @@ make-scheme [
 					]
 					SYST [
 						switch/default code [
-							"215 " [net-log "useless system information"
+							215 [net-log "useless system information"
 								client/spec/ready: true
 							]
 						] [process-code code client]
 					]
 					PWD [
 						switch/default code [
-							"257 " [net-log "working directory received"
+							257 [net-log "working directory received"
 								client/spec/ready: true
 							]
 						] [process-code code client]
 					]
 					TYPE [
 						switch/default code [
-							"200 " [net-log "set transfer mode"
+							200 [net-log "set transfer mode"
 								client/spec/ready: true
 							]
 						] [process-code code client]
 					]
 					MKD XMKD [
 						switch/default code [
-							"257 " [net-log "ok, will create new directory" ]
-							"250 " [
+							257 [net-log "ok, will create new directory" ]
+							250 [
 								net-log "new directory created"
 								client/spec/ready: true
 							]
@@ -295,46 +305,46 @@ make-scheme [
 					]
 					RMD XRMD [
 						switch/default code [
-							"250 " [
+							250 [
 								net-log "directory removed"
 								client/spec/ready: true
 							]
-							"550 " [net-log "failed to remove directory" 
+							550 [net-log "failed to remove directory" 
 								client/spec/ready: true
 							]
 						] [process-code code client]
 					]
 					RNFR [
 						switch/default code [
-							"350 " [
+							350 [
 								net-log "file ready to be renamed, waiting for RNTO command"
 								client/spec/ready: true
 							]
-							"550 " "450 " [net-log "file does not exist" 
+							550 450 [net-log "file does not exist" 
 								client/spec/ready: true
 							]
 						] [process-code code client]
 					]
 					RNTO [
 						switch/default code [
-							"250 " [
+							250 [
 								net-log "file renamed"
 								client/spec/ready: true
 							]
-							"503 " [ net-log "No RNFR command received first" 
+							503 [ net-log "No RNFR command received first" 
 								client/spec/ready: true
 							]
-							"550 " "553 " [net-log "failed to rename file/directory" 
+							550 553 [net-log "failed to rename file/directory" 
 								client/spec/ready: true
 							]
 						] [process-code code client]
 					]
 					DELE [
 						switch/default code [
-							"250 " [net-log "file deleted"
+							250 [net-log "file deleted"
 								client/spec/ready: true
 							]
-							"450 " "550 " [ 
+							450 550 [ 
 								net-log "File deletion failed"
 								client/spec/ready: true
 							]
@@ -342,7 +352,7 @@ make-scheme [
 					]
 					LIST NLST RETR STOR STOU APPE [
 						switch/default code [
-							"150 " [net-log "ready to send/receive directory/file"
+							150 [net-log "ready to send/receive directory/file"
 								; we should now send the file if this is using the STOR ...
 								if find [ STOR STOU APPE] client/spec/state [
 									case [
@@ -368,26 +378,26 @@ make-scheme [
 									]
 								]
 							]
-							"226 " [net-log "directory/file transmitted"
+							226 [net-log "directory/file transmitted"
 								net-log "waiting now on dataport"
 								client/spec/ready: true
 								return true
 							]
-							"425 " [net-log "No TCP data connection established" client/spec/ready: true]
-							"426 " [net-log "Broken TCP data connection" client/spec/ready: true]
-							"451 " "452 " "552 " [net-log "Server read error" client/spec/ready: true]
+							425 [net-log "No TCP data connection established" client/spec/ready: true]
+							426 [net-log "Broken TCP data connection" client/spec/ready: true]
+							451 452 552 [net-log "Server read error" client/spec/ready: true]
 						] [process-code code client]
 					]
 					CWD [
 						switch/default code [
-							"250 " [net-log "changed directory" client/spec/ready: true]
-							"200 " [net-log "changed directory" client/spec/ready: true]
-							"550 " [net-log "this directory does not exist" client/spec/ready: true]
+							250 [net-log "changed directory" client/spec/ready: true]
+							200 [net-log "changed directory" client/spec/ready: true]
+							550 [net-log "this directory does not exist" client/spec/ready: true]
 						] [process-code code client]
 					]
 					PASV [
 						switch/default code [
-							"227 " [net-log "Switched to passive mode"
+							227 [net-log "Switched to passive mode"
 								if parse response [3 digit non-digits copy ip pasv-rule to end] [
 									; if we get a valid address from the server, we will create another port to be used for data transmission
 									use [tmp] [
@@ -485,6 +495,8 @@ make-scheme [
 			port [port!]
 			/local conn
 		] [
+			probe port/spec
+		
 			if port/state [return port]
 			if none? port/spec/host [
 				make error! [
@@ -511,7 +523,9 @@ make-scheme [
 				ready: false ; another state flag
 				timeout: 10
 				messages: [] ; holds the queue of messages being sent to the port
-				user: either in port/spec 'user [port/spec/user] ["anonymous"]
+				;user: either in port/spec 'user [port/spec/user] ["anonymous"]
+				; allow %40 or @ in the username
+				user: either in port/spec 'user [dehex port/spec/user] ["anonymous"]
 				pass: either in port/spec 'pass [port/spec/pass] ["rebol@"]
 				ref: rejoin [tcp:// host ":" port-id]
 			]
@@ -535,8 +549,9 @@ make-scheme [
 			all [port/state]
 		]
 
-		close: funct [
+		close: func [
 			port [port!]
+			/local dataport
 		] [
 			write clipboard:// mold port
 			
@@ -560,11 +575,18 @@ make-scheme [
 	]
 ]
 
+comment [
+
+; when passing a user/pass with @ in the username you can do this now
+; cmd: open decode-url "ftp://graham%40rebol.com:password@ftp.rebol.com"
+; when the port is opened the graham%40rebol.com is dehexed to graham@rebol.com
+
+
 cmd: open ftp://graham:pass@192.168.1.120:4559
 read cmd
 write cmd [ PASV ]
 read cmd
-write cmd compose [ LIST "status" (:print-string)]
+write cmd compose [ LIST "/htdocs/" (:print-string)]
 read cmd
 
 
@@ -607,3 +629,4 @@ write cmd [ DELE "remr.old" ]
 read cmd
 write cmd [ MKD "tmp" ]
 read cmd
+]
