@@ -2,7 +2,7 @@ Rebol [
 	file: %rebolbot.r3
 	author: "Graham"
 	date: 28-Feb-2013
-	version: 0.0.6
+	version: 0.0.7
 	purpose: {post messages into the Rebol-red chat room on Stackoverflow}
 	Notes: {You'll need to capture your own cookie and fkey using wireshark or similar.}
 ]
@@ -64,7 +64,7 @@ bot-len: length? botname
 space: charset #" "
 
 ; these users can remove keys
-priviledged-users: [ "BrianH" "HostileFork" "Graham Chiu" "rgchris" "Adrian" ] 
+privileged-users: [ "BrianH" "HostileFork" "Graham Chiu" "rgchris" "Adrian" ] 
 
 percent-encode: func [char [char!]][
         char: enbase/base to-binary char 16
@@ -165,7 +165,7 @@ remove-key: func [ message-id person content users
 	/local rec
 ][
 	either find users person [
-		; priviledged user
+		; privileged user
 		either rec: find bot-expressions content [
 			remove/part rec 2
 			save expressions bot-expressions
@@ -174,7 +174,7 @@ remove-key: func [ message-id person content users
 			reply message-id   [ content " not found in my keys" ]					
 		]		
 	][
-		reply message-id "Sorry, you don't have those priviledges yet."
+		reply message-id "Sorry, you don't have those privileges yet."
 	]
 ]
 
@@ -209,7 +209,7 @@ process-bot-cmd: func [ person message-id cmd expression ][
 	switch/default cmd [
 		"?" "h" [ provide-help message-id ]
 		"k" [ show-keys message-id ]
-		"rm" [ remove-key message-id person expression priviledged-users ]
+		"rm" [ remove-key message-id person expression privileged-users ]
 		"s" [ save-key message-id expression ]
 		"v" [ reply message-id  form system/script/header/version ]
 		"x" [ attempt [ evaluate-expression message-id expression ]]
@@ -222,16 +222,12 @@ process-bot-cmd: func [ person message-id cmd expression ][
 process-key-search: func [ message-id expression 
 	/local understood search-key person
 ][
-	?? message-id
-	?? expression
 	understood: false
 	set [ search-key person ] parse expression none
 	unless all [
 		person
 		parse person [ "@" to end ]
 	][ person: none ]
-	?? person
-	?? search-key
 	; remove punctuation of ! and ?
 	if find [ #"!" #"?" ] last search-key [ remove back tail search-key ]
 	foreach [ key data ] bot-expressions [
@@ -257,7 +253,7 @@ bot-cmd-rule: [
 			end (expression: copy "" ) | 
 			some space copy expression to end (trim expression)
 		] (
-			process-bot-cmd person message-id cmd expression )
+			process-bot-cmd user-name message-id cmd expression )
 	|	; some keyword follows
 		
 		copy key to end (
