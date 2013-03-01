@@ -2,7 +2,7 @@ Rebol [
 	file: %rebolbot.r3
 	author: "Graham"
 	date: 28-Feb-2013
-	version: 0.0.5
+	version: 0.0.6
 	purpose: {post messages into the Rebol-red chat room on Stackoverflow}
 	Notes: {You'll need to capture your own cookie and fkey using wireshark or similar.}
 ]
@@ -66,27 +66,26 @@ space: charset #" "
 ; these users can remove keys
 priviledged-users: [ "BrianH" "HostileFork" "Graham Chiu" "rgchris" "Adrian" ] 
 
-url-encode: func [
-    "URL-encode a string" 
-    data "String to encode" 
-    /local new-data
-] [
-    new-data: make string! "" 
-    normal-char: charset [
-        #"A" - #"Z" #"a" - #"z" 
-        #"." #"*" #"-" #"_" 
-        #"0" - #"9"
-    ] 
-    if not string? data [return new-data] 
-    forall data [
-        append new-data either find normal-char first data [
-            first data
-        ] [
-			join "%" copy/part tail to string! to-hex to integer! first data -2
+percent-encode: func [char [char!]][
+        char: enbase/base to-binary char 16
+        parse char [
+            copy char some [char: 2 skip (insert char "%") skip]
         ]
-    ] 
-    new-data
-] 
+        char
+    ]
+
+url-encode: use [ch mk][
+    ch: charset ["-." #"0" - #"9" #"A" - #"Z" #"-" #"a" - #"z" #"~"]
+    func [text [any-string!]][
+        either parse/all text: form text [
+            any [
+                some ch | end | change " " "+" |
+                mk: (mk: percent-encode mk/1)
+                change skip mk
+            ]
+        ][to-string text][""]
+    ]
+]
 
 header: compose [
 	Host: "chat.stackoverflow.com"
