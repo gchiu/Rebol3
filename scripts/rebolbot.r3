@@ -1,8 +1,8 @@
 Rebol [
 	file: %rebolbot.r3
 	author: "Graham"
-	date: [ 28-Feb-2013 4-Mar-2013 ]
-	version: 0.0.13
+	date: [ 28-Feb-2013 4-Mar-2013 8-Mar-2013]
+	version: 0.0.20
 	purpose: {post messages into the Rebol-red chat room on Stackoverflow}
 	Notes: {You'll need to capture your own cookie and fkey using wireshark or similar.}
 ]
@@ -19,22 +19,22 @@ chat-length-limit: 500 ; SO chat limits to 500 chars if a message contains a lin
 bot-cookie: {-get-your-own-}
 bot-fkey: "-get-your-own-"
 
+; ideone API details
+ideone-user: "-get-your-own-" 
+ideone-pass: "-get-your-own-" 
+
 pause-period: 5 ; 7 seconds
 no-of-messages: 5 ; fetch 5 messages each time
+max-scan-messages: 200 ; max to fetch to scan for links by a user
 
-; these users can remove keys - should at some stage be changed to using userids which are guaranteed to be unique
-privileged-users: [ "BrianH" "HostileFork" "Graham Chiu" "GrahamChiu" "rgchris" "Adrian" ] 
+; these users can remove keys - uses userids, the names are there just so that you know who they are!
+privileged-users: [ "BrianH" 2016426 "HostileFork" 211160 "Graham Chiu" 76852 "GrahamChiu" 76852 "rgchris" 292969 "Adrian" 1792095 "dockimbel" 2026582 "earl" 135724] 
 
-; data files we keep
 expressions: %bot-expressions.r
 notable-persons-file: %known-users.r
+
+lastmessage-no:  7973980
 last-message-file: %lastmessage-no.r
-bot-config-file: %bot-config.r 
-
-;- configuration urls
-remote-execution-url: http://--use--your-own--here--
-
-lastmessage-no:  7973980 ; or 0 if you wish
 
 if exists? last-message-file [
 	attempt [
@@ -45,13 +45,12 @@ if exists? last-message-file [
 ?? lastmessage-no
 
 ; save/all %bot-config.r make object! compose [ bot-fkey: (bot-fkey) bot-cookie: (bot-cookie) ]
-if exists? bot-config-file [
-	bot-config: load bot-config-file
+if exists? %bot-config.r [
+	bot-config: load %bot-config.r
 	bot-cookie: bot-config/bot-cookie
 	bot-fkey: bot-config/bot-fkey
 ]
 
-; some defaults - overwrite these when we read the saved ones
 bot-expressions: [
 	"help" [ "FAQ" http://rebolsource.net/go/chat-faq ]
 	"tutorial" [ "Introduction to Rebol" http://www.rebol.com/rebolsteps.html ]
@@ -63,15 +62,25 @@ if exists? expressions [
 	bot-expressions: load expressions
 ]
 
-; set these to the room you're in
-room-id: 291
-room-descriptor: "rebol-and-red"
+; use your own ... different urls for different languages
+remote-execution-url: [
+	rebol3	http://--get--your--own1
+	rebol2 http://--get--your--own2
+	boron http://--get--your--own3
+	red none
+]
+
+; the room descriptor is probably not needed ..
+room-id: 291 room-descriptor: "rebol-and-red"
 
 so-chat-url: http://chat.stackoverflow.com/ 
-chat-target-url: rejoin [ so-chat-url 'chats "/" room-id "/" 'messages/new  ]
+chat-target-url: rejoin write-chat-block: [ so-chat-url 'chats "/" room-id "/" 'messages/new  ]
 referrer-url: rejoin [ so-chat-url 'rooms "/" room-id "/" room-descriptor ]
 read-target-url: rejoin [ so-chat-url 'chats "/" room-id "/" 'events ]
 delete-url: [ so-chat-url 'messages "/" (parent-id) "/" 'delete ] 
+; POST /messages/8034726/delete HTTP/1.1
+
+ideone-url: http://ideone.com:80/api/1/service
 
 ; config botname
 botname: "@RebolBot"
@@ -145,20 +154,115 @@ header: compose [
 	cookie: (bot-cookie)
 ]
 
-speak: func [ message ][
-	to string! write chat-target-url compose/deep  copy/deep [
+; ideone uses SOAP so we create some templates for all the XML we need to send
+soap-execute-template: {<?xml version="1.0" encoding="UTF-8" standalone="no"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tns="http://ideone.com:80/api/1/service" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:soap-enc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ><SOAP-ENV:Body><mns:createSubmission xmlns:mns="http://ideone.com:80/api/1/service" SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><user xsi:type="xsd:string">$a</user><pass xsi:type="xsd:string">$b</pass><sourceCode xsi:type="xsd:string">$c</sourceCode><language xsi:type="xsd:int">$d</language><input xsi:type="xsd:string">$e</input><run xsi:type="xsd:boolean">$f</run><private xsi:type="xsd:boolean">$g</private></mns:createSubmission></SOAP-ENV:Body></SOAP-ENV:Envelope>}
+
+soap-response-template: {<?xml version="1.0" encoding="UTF-8" standalone="no"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tns="http://ideone.com:80/api/1/service" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:soap-enc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ><SOAP-ENV:Body><mns:getSubmissionDetails xmlns:mns="http://ideone.com:80/api/1/service" SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><user xsi:type="xsd:string">$user</user><pass xsi:type="xsd:string">$pass</pass><link xsi:type="xsd:string">$link</link><withSource xsi:type="xsd:boolean">1</withSource><withInput xsi:type="xsd:boolean">1</withInput><withOutput xsi:type="xsd:boolean">1</withOutput><withStderr xsi:type="xsd:boolean">1</withStderr><withCmpinfo xsi:type="xsd:boolean">1</withCmpinfo></mns:getSubmissionDetails></SOAP-ENV:Body></SOAP-ENV:Envelope>
+}
+
+evaluate-by-ideone: func [ message-id user pass source [string!] language [word! string!] inpt [string!] 
+	/local result result2 error status link inputs output
+][
+	error: status: link: none
+	print "in eval ideone"
+	
+	; we have something liket his {" language code "} so we need to remove the extra quotes
+	source: head remove source head remove back tail source
+	
+	language: select [
+		"forth" 107
+		"ruby" 17
+		"javascript" 35
+		"scheme" 33
+	] to string! language
+	if none? language [
+		reply message-id "Unsupported language" 
+		return
+	]
+
+	result: write ideone-url reduce [ 'SOAP (
+		reword soap-execute-template reduce [
+			'a user
+			'b pass
+			'c source
+			'd language
+			'e inpt
+			'f "1"
+			'g "1"
+		]	
+		)
+	]
+	; should get an error code, and a link code to look up the language output
+	if parse decode 'markup result [ 
+		thru <item> <key xsi:type="xsd:string"> copy error to </key>
+		thru <value xsi:type="xsd:string"> copy status to </value>
+		thru <item> <key xsi:type="xsd:string"> "link" </key> 
+		<value xsi:type="xsd:string"> copy link to </value>
+		to end ][
+		if all [
+			error/1 = "error"
+			status/1 = "OK"	
+		][
+			; we have a link value to get the result
+			; wait before picking up the result
+			wait 2
+			
+			result2: write ideone-url reduce [ 'SOAP (
+				reword soap-response-template reduce [
+					'user user
+					'pass pass
+					'link link/1
+				]
+				)
+			]
+			; if we got a response back, parse it out, else just do nothing ( or could send an error message ... )
+			if result2 [
+				if parse decode 'markup result2 [
+					thru "source" </key>
+					thru <value xsi:type="xsd:string"> copy inputs to </value>
+					thru "output" </key>
+					thru <value xsi:type="xsd:string"> copy output to </value> to end
+				][
+					reply message-id rejoin [ 
+						"    RebolBot uses http://ideone.com (c) http://sphere-research.com" newline
+						"    " decode-xml inputs/1 newline 
+						"    " decode-xml output/1
+					]
+				]
+			]
+		]
+	]
+]
+
+
+speak-private: func [ message room-id ][
+	bind write-chat-block 'room-id
+	probe rejoin compose copy write-chat-block
+	to string! write rejoin compose copy write-chat-block compose/deep  copy/deep [
 		POST
 		[ 	(header) ]
 		(rejoin [ "text=" url-encode message "&fkey=" bot-fkey ])
 	]	
 ]
 
-read-messages: func [ cnt ][
-	to string! write read-target-url compose/deep  copy/deep [
-		POST
-		[ 	(header) ]
-		(rejoin [ "since=0&mode=Messages&msgCount=" cnt "&fkey=" bot-fkey ])
-	]	
+speak: func [ message /local err ][
+	if error? set/any 'err try [
+		to string! write chat-target-url compose/deep  copy/deep [
+			POST
+			[ 	(header) ]
+			(rejoin [ "text=" url-encode message "&fkey=" bot-fkey ])
+		]
+	][
+		mold err
+	]
+]
+
+read-messages: func [ cnt][
+		to string! write read-target-url compose/deep  copy/deep [
+			POST
+			[ 	(header) ]
+			(rejoin [ "since=0&mode=Messages&msgCount=" cnt "&fkey=" bot-fkey ])
+		]
 ]
 
 reply: func [ message-id  text [string! block!] ][
@@ -168,20 +272,20 @@ reply: func [ message-id  text [string! block!] ][
 
 provide-help: func [ message-id ][
 	reply message-id {I respond to these commands:
-delete "removes replied to message"
+delete [ silent ] "in reply to a bot message will delete if in time"
 do expression "evaluates Rebol expression in a sandboxed interpreter (/x)"	
 help "this help (/? and /h)"
 keys "returns known keys (/k)"
-remove key "removes key (authorised user) (/rm)"
+remove key "removes key (authorized user) (/rm)"
 save my details url! "saves your details with url"
 save key [string! word!] description [string!] link [url!] "save key with description and link (/s)"
+show [all ][ recent ] links [ by | from ] user "shows links posted in messages by user"
 show links [ like url ] "shows saved links"
 show me your youtube videos "shows saved youtube videos"
-who is user "returns user details and page"
+who is [ user | user? ] "returns user details and page"
 whom do you know "returns a list of all known users"
 ? key [ for user | @user ] "Returns link and description"
 version "version of bot (/v)"
-what is the time "returns bot's local time"
 }
 ]
 	
@@ -197,6 +301,7 @@ show-keys: func [ message-id /local tmp ][
 save-key: func [ message-id content [string! block!] /local exp err ][
 	if error? err: try [
 		exp: to block! content
+		?? exp
 		either all [
 			any [ string? exp/1 word? exp/1 ]
 			exp/1: to string! exp/1
@@ -223,10 +328,10 @@ save-key: func [ message-id content [string! block!] /local exp err ][
 	]
 ]
 
-remove-key: func [ message-id person content users
+remove-key: func [ message-id person person-id [integer!] content users [block!]
 	/local rec
 ][
-	either find users person [
+	either find users person-id [
 		; privileged user
 		either rec: find bot-expressions content [
 			remove/part rec 2
@@ -236,17 +341,30 @@ remove-key: func [ message-id person content users
 			reply message-id   [ content " not found in my keys" ]					
 		]		
 	][
-		reply message-id "Sorry, you don't have those privileges yet."
+		reply message-id [ "Sorry, " person " you don't have the privileges yet to remove the key " content]
 	]
 ]
 
 evaluate-expression: func [ message-id expression
-	/local output html error-url exp
+	/r2 "rebol2"
+	/boron "boron"
+	/red "RED"
+	/local output html error-url exp execute-url
 ][
+	if red [
+		reply message-id [ "Sorry, waiting for Kaj and @dockimbel for this one!, Let's try Rebol3 pro tem." ]
+	]
 	output: html: error-url: none
-	print "attempting evaluation"
-	html: to string! write remote-execution-url compose [ POST (expression) ]
-	parse html [ thru <span> "Last result:" thru <pre> copy output to </pre> ]
+	execute-url: select remote-execution-url 
+	case [
+		r2 [ 'rebol2 ]
+		boron [ 'boron ]
+		true [ 'rebol3 ]
+	]
+	
+	print [ "attempting evaluation at: " execute-url ]
+	html: to string! write execute-url compose [ POST (expression) ]
+	parse html [ thru <span> thru <pre> copy output to </pre> ]
 	output: decode-xml output
 	; if an error, remove part of the error string and parse out the help page
 	if find output "*** ERROR" [
@@ -267,7 +385,6 @@ evaluate-expression: func [ message-id expression
 	?? expression
 ]	
 
-; can put your own here
 about-users: [
 	earl https://github.com/earl
 	graham https://github.com/gchiu/
@@ -284,20 +401,24 @@ if exists? notable-persons-file [
 ]
 
 ; pass the message to delete
-delete-message: func [ parent-id message-id
+; delete-url: [ so-chat-url 'messages "/" (message-id) 'delete ] 
+delete-message: func [ parent-id message-id /silent
 	/local result mess
 ][
 	mess: rejoin compose copy delete-url 
+	?? mess
 	result: to string! write mess: rejoin compose copy delete-url compose/deep copy/deep [
 		POST
 		[ 	(header) ]
 		(rejoin [ "fkey=" bot-fkey ])
 	]	
-	switch/default result [
-		{"It is too late to delete this message"} [ reply message-id ["sorry, it's too late to do this now.  Be quicker next time" ] ]
-		{"ok"} [ reply message-id [ "done" ]]
-	][
-		reply message-id [ "SO says: " result ]
+	if not silent [
+		switch/default result [
+			{"It is too late to delete this message"} [ reply message-id ["sorry, it's too late to do this now.  Be quicker next time" ] ]
+			{"ok"} [ reply message-id [ "done" ]]
+		][
+			reply message-id [ "SO says: " result ]
+		]
 	]
 ]
 
@@ -347,7 +468,6 @@ show-user-page: func [ message-id user person /local link known ][
 ; so let's send in 500 ( chat-length-limit ) char chunks
 ; this should be a refinement of show-similar-links
 show-all-links: func [ message-id /local out link used ][
-	print "in the show all links function"
 	out: copy ""
 	used: copy []
 	foreach [ key data ] bot-expressions [
@@ -368,6 +488,7 @@ show-all-links: func [ message-id /local out link used ][
 ]
 
 show-similar-links: func [ message-id links /local out link tot used][
+	print "in the simlar links function now"
 	out: copy ""
 	used: copy [ ]
 	foreach [ key data ] bot-expressions [
@@ -388,6 +509,7 @@ show-similar-links: func [ message-id links /local out link tot used][
 		]
 	]
 	wait 2
+	?? out
 	if empty? out [ out: copy "nothing found" ]
 	reply message-id out
 ]
@@ -396,7 +518,7 @@ reply-time: func [ message-id ][
 	reply message-id to-idate now
 ]
 
-process-dialect: funct [ message-id person expression
+process-dialect: funct [ message-id person person-id expression
 ][
 	show-rule: [ 
 		'show any [ 'me | 'all ]
@@ -409,12 +531,13 @@ process-dialect: funct [ message-id person expression
 		[	some [ 'who 'is | 'whois | 'who 'the 'dickens 'is ] copy user to end
 		] 	( if found? user [ show-user-page message-id user/1 person] done: true)	
 	]
-	whom-rule: [ 'whom 'do 'you 'know ( show-all-users message-id done: true) ]
+	whom-rule: [ 'whom 'do 'you [ 'know | 'know?  ]( show-all-users message-id done: true) ]
 	save-rule: [   
-			(
+			(print "save rule" 
 				trim/all person
 			)
 			'save 'my 'details set user-url url! (
+				?? user-url
 				add-user-details message-id person user-url
 				done: true
 			)
@@ -427,21 +550,54 @@ process-dialect: funct [ message-id person expression
 				] 
 			)		
 	] 
+	do2-rule: [ [ 'do/2 | 'do/rebol2 ] copy expression to end 
+			(  	done: true
+				attempt [ 
+					evaluate-expression/r2 message-id mold/only expression 
+				] 
+			)		
+	] 
+	do-boron-rule: [ 'do/boron  copy expression to end 
+			(  	done: true
+				attempt [ 
+					evaluate-expression/boron message-id mold/only expression 
+				] 
+			)		
+	] 
+	do-red-rule: [ 'do/red copy expression to end 
+			(  	done: true
+				attempt [ 
+					evaluate-expression/red message-id mold/only expression 
+				] 
+			)			
+	]
+	do-ideone-rule: [ 'do/ideone [ set language word! | set language string! ] copy expression to end
+		( done: true
+			attempt [
+				evaluate-by-ideone message-id ideone-user ideone-pass mold/only expression language ""
+			]
+		)
+	]
 	version-rule: [
 			'version ( done: true  reply message-id  form system/script/header/version )
 	]
 	help-rule: [ 'help ( done: true provide-help message-id ) ] 
 	key-rule: [	'keys ( done: true show-keys message-id ) ] 
-	remove-key-rule: [ ; remove-key message-id person expression privileged-users
-		'remove copy expression to end ( done: true remove-key message-id person form expression privileged-users )
+	remove-key-rule: [ ; remove-key message-id person person-id expression privileged-users
+		'remove copy expression to end ( 
+			done: true 
+			remove-key message-id person person-id form expression privileged-users 
+		)
 	]
 	greet-rule: [ copy greeting [ 'hello | 'goodbye | 'morning ] ( reply message-id [ greeting " to you too" ] done: true )] 
 	default-rule:  [
 			; default .. checks for a word and sends it to the check-keys
 			set search-key word! opt [ 'for set recipient word! ] (
 				done: true
+				?? search-key
+				?? recipient
 				either found? recipient [ 
-					recipient: append "@" recipient
+					recipient: ajoin [ "@" recipient ]
 				][
 					recipient: copy ""
 				]
@@ -452,22 +608,55 @@ process-dialect: funct [ message-id person expression
 		'? default-rule
 	] 
 	delete-rule: [
-		'delete (done: true delete-message parent-id message-id )
+		'delete (done: true  silent: false )
+		opt [ copy silent word! ] (
+			either all [ block? silent silent/1 = 'silent][
+				delete-message/silent parent-id message-id 			
+			][
+				print "not calling silent"
+				delete-message parent-id message-id 
+			]
+		)
 	]
 	time-rule: [ 
 		'what 'is 'the [ 'time | 'time? ] opt [ 'now? | 'now | 'in 'GMT ]
 		( done: true reply-time message-id )
 	]
 	
+	life-rule: [
+		'what 'is 'the 'meaning 'of [ 'life | 'life? ] ( done: true
+			reply message-id "42" 
+		)
+	]
+	
+	show-links-by-rule: [
+		opt 'show opt 'me opt 'recent 'links [ 'by | 'from ] [ set username word! | set username string! ] (
+			done: true
+			find-links-by message-id max-scan-messages username
+		)
+	]
+	
+	private-session-rule: [ 
+		'private 'session 'in set private-room integer!  (
+			done: true
+			attempt [
+				reply message-id "OK, coming"
+				wait 2
+				speak-private "hello" private-room
+			]
+		)
+	]
+	
 	dialect-rule: [
 		( recipient: none )
+		show-links-by-rule |
 		show-rule | 
 		whois-rule |
 		whom-rule |
 		save-rule |
 		save-key-rule |
 		search-key-rule |
-		do-rule |
+		do-rule | do2-rule | do-boron-rule | do-red-rule | do-ideone-rule |
 		version-rule |
 		help-rule |
 		key-rule |
@@ -475,6 +664,8 @@ process-dialect: funct [ message-id person expression
 		greet-rule |
 		delete-rule |
 		time-rule |
+		life-rule |
+		private-session-rule |
 		default-rule
 	]
 
@@ -507,19 +698,19 @@ process-dialect: funct [ message-id person expression
 				show-similar-links message-id http://www.youtube.com				
 			]
 			done [ ]
-			true [ reply message-id "Sorry, don't understand what you said to me" ]
+			true [ reply message-id [ "Sorry, don't understand " expression ]]
 		]
 	][
 		reply message-id mold err
 	]
 ]
 
-process-bot-cmd: func [ person message-id cmd expression ][
+process-bot-cmd: func [ person person-id message-id cmd expression ][
 	switch/default cmd [
 		"?" "h" [ provide-help message-id ]
-		"d" [ process-dialect message-id person expression ]
+		"d" [ process-dialect message-id person person-id expression ]
 		"k" [ show-keys message-id ]
-		"rm" [ remove-key message-id person expression privileged-users ]
+		"rm" [ remove-key message-id person person-id expression privileged-users ]
 		"s" [ save-key message-id expression ]
 		"v" [ reply message-id  form system/script/header/version ]
 		"x" [ attempt [ evaluate-expression message-id expression ]]
@@ -554,18 +745,18 @@ process-key-search: func [ message-id expression
 
 ; cmd is k, rm, s etc, and expression is either "" or something like "print 1 + 2"
 bot-cmd-rule: [
-	botname
+	botname 
 	some space 
 	[
 		"/" copy cmd some non-space [ 
 			end (expression: copy "" ) | 
 			some space copy expression to end (trim expression)
-		] (  
-			process-bot-cmd user-name message-id cmd expression )
+		] ( 
+			process-bot-cmd user-name person-id message-id cmd expression )
 	|	; some keyword or dialected command follows
 		copy key to end (
 			; process-key-search message-id trim key
-			process-dialect message-id user-name key
+			process-dialect message-id user-name person-id key
 		)
 	]
 ]
@@ -575,7 +766,7 @@ message-rule: [
 	<time_stamp> integer! |
 	<content> set content string! |
 	<id> integer! |
-	<user_id> integer! |
+	<user_id> set person-id integer! |
 	<user_name> set user-name string! |
 	<room_id> integer! |
 	<room_name> string! |
@@ -586,11 +777,71 @@ message-rule: [
 	end 
 ]
 
-result: messages: none
+result: messages: parent-id: none
 ; lastmessage-no: 7999529
 
+read-messages-by: func [ n username
+	/local result messages wanted user
+][
+	wanted: copy [ ]
+	username: form username
+	result: load-json/flat read-messages n
+	messages: result/2
+	foreach msg messages [
+		if parse msg [ some [  thru <content> copy content string! | thru <user_name> copy user string! to end ]][
+			if user/1 = username [
+				; found a message we want
+				append wanted content
+			]
+		]
+	]
+	wanted
+]
+
+find-links-by: func [ message-id n username
+	/local result links link ilink text payload
+][
+	links: copy []
+	result: read-messages-by n username
+	; now have a block of messages by username, so parse it to get the links and text out
+	foreach content result [
+		; grab all links from the message
+		parse decode 'markup to binary! decode-xml content [
+			some [
+				opt string! 
+				set link tag! 
+				set text string! 
+				</a> (
+					if parse form link [ thru {a href="} copy ilink to {"} to end ][
+						repend links [ text ilink ]
+					]
+				)
+				opt string!
+			]  
+		]
+	]
+
+	; we have all the links
+	either empty? links [
+		reply message-id [ "No links found in the last " n " messages." ]
+	][
+		payload: rejoin [ username " in the last " n " messages wrote the following links: " ]
+		foreach [ text link ] links [
+			link: rejoin [ "[" text "](" link "); " ]
+			either chat-length-limit < add length? payload length? link [
+				reply message-id payload
+				wait 2
+				payload: copy link
+			][
+				append payload link
+			]
+		]
+		reply message-id payload
+	]
+]
+
 forever [
-	attempt [
+	if error? set/any 'errmain try  [
 		result: load-json/flat read-messages no-of-messages
 		messages: result/2
 		; now skip thru each message and see if any unread
@@ -600,18 +851,14 @@ forever [
 			either parse msg [ some message-rule ][
 				print "parsed"
 				?? parent-id
-			][ print "failed" ]
+			][ 	print "failed" ; we could just skip to the next message since the parse failed
+			]
 			message-id: message-no
 			content: trim decode-xml content
-			?? content
-			?? user-name
-			?? message-no
-			?? lastmessage-no
 			; new message?
 			if message-no > lastmessage-no [
 				print "New message"
 				save last-message-file lastmessage-no: message-no
-				; {<div class='full'>@RebolBot /x a: "Hello" <br> print a</div>}
 				parse content [ 
 					<div class='full'> opt space copy content to </div>
 					( replace/all content <br> " " trim content)
@@ -621,6 +868,8 @@ forever [
 				]
 			]
 		]
+	][
+		probe mold errmain
 	]
 	wait pause-period
 ]
