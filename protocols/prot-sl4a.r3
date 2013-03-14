@@ -18,7 +18,7 @@ Rebol [
 		]
 		
 		p: open sl4a://localhost
-		result: write p  to-json [ params: [ "Hello, Android" ] id: 1 method: "makeToast" ]
+		result: write p  to-json make object! [ params: [ "Hello, Android" ] id: 1 method: "makeToast" ]
 		>> ?? result
 			result: make object! [
 			error: none
