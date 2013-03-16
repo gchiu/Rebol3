@@ -5,8 +5,8 @@ Rebol [
     author: ["Graham" ]
 	name: 'sl4a
 	type: 'module
-	version: 0.0.1
-    Date: [ 14-Mar-2013 ]
+	version: 0.0.2
+    Date: [ 14-Mar-2013 16-Mar-2013 ]
     Purpose: "R3 send and receive from Scripting Layer 4 Android"
     Note: ""
     Description: {
@@ -18,16 +18,23 @@ Rebol [
 		]
 		
 		p: open sl4a://localhost
-		result: write p  to-json make object! [ params: [ "Hello, Android" ] id: 1 method: "makeToast" ]
+		result: write p  [ makeToast "hello, world" ]
 		>> ?? result
 			result: make object! [
 			error: none
 			id: 1
 			result: none
 		]
+		these are all valid blocks, order is not important
+		[ makeToast "hello, world" ]
+		[ 2 makeToast ["hello, world" ]]
+		[ dialogCreateAlert [{"title", "message"}] 3]
+		[ dialogShow ]
+		[ [ dialogCreateAlert ["title" "message" ] 3] [ dialogShow 4]]
     }
 	History: {
 		0.0.1 first version
+		0.0.2 use a dialected block as the parameter for 'write
 	}
 ]
 
@@ -40,6 +47,37 @@ make-sl4a-error: func [
         arg1: message
     ]
 ]
+
+; if params is absent, then it's an empty JSON array
+; if params is a string!, then it's a single element in a JSON array
+; if params is a block!, then it needs to be converted to a JSON array
+
+parse-request: funct/with [ data [block!]
+	/local params method id template
+][
+	params: method: id: none
+	parse data [ 
+		some [
+			set params block! | 
+			set params string! |
+			set method word! |
+			set id integer!
+		]
+	]
+	template: copy {{"method":"$method","params":$params,"id":$id}}
+	id: either none? id [ ++ cnt ][ cnt: id id ]
+	params: switch type?/word params [
+		string! [ mold append copy [] params ]
+		block! [ to-json copy params ]
+		none! [ mold [] ]
+	][ mold []]
+	
+	reword template reduce [
+		'method method
+		'params params
+		'id id
+	]
+][ cnt: 1 ]
 
 ; android-request: {{"params": ["Hello, Android!"], "id":1, "method": "makeToast"}}
 
@@ -70,12 +108,16 @@ sl4a-awake: func [event /local port] [
 				print "written, so read port"
 				read port
 			]
+			close [
+				print "closed on us!"
+				return true
+			]
         ][ true ]
         false
     ]
 	
 sync-write: func [ port [port!] body
-	/local state result
+	/local state
 ][
 	unless port/state [ open port port/state/close?: yes ]
 	state: port/state
@@ -88,13 +130,13 @@ sync-write: func [ port [port!] body
 sys/make-scheme [
     name: 'sl4a
     title: "SL4A Protocol"
-    spec: make system/standard/port-spec-net [port-id: 4321 timeout: 15 ]
+    spec: make system/standard/port-spec-net [port-id: 4321 timeout: 60 ]
 
     actor: [
 
         open: func [
             port [port!]
-            /local conn url
+            /local conn
         ] [
             if port/state [return port]
             if none? port/spec/host [make-sl4a-error "Missing host address"]
@@ -105,8 +147,7 @@ sys/make-scheme [
 				close?: no  
 				json: none
 			]
-			print "creating the port"
-            port/state/connection: 
+			port/state/connection: 
 				conn: make port!  [
                 scheme: 'tcp
                 host: port/spec/host
@@ -131,14 +172,23 @@ sys/make-scheme [
 
 		write: func [
 			port [port!]
-			obj 
-            /local conn 	
+			obj [block!]
+            /local result 
 		][
 			if port/state/connection/spec/state = 'init [
 				wait [ port 2 ]
 			]
-			sync-write port obj		
-			port/state/connection/spec/json
+			either all [ block? obj/1 block? obj/2 ][
+				result: copy []
+				foreach cmd obj [
+					sync-write port parse-request cmd
+					append result port/state/connection/spec/json
+				]
+				result
+			][
+				sync-write port parse-request obj		
+				port/state/connection/spec/json
+			]
 		]
     ]
 ]
