@@ -14,6 +14,12 @@ if not value? 'decode-xml [
 	do http://reb4.me/r3/altxml
 ]
 
+if not value? 'shrink [
+	shrink: load http://www.rebol.org/download-a-script.r?script-name=shrink.r
+	eliza: make object! shrink/4
+	eliza/rules: shrink/6
+]
+
 chat-length-limit: 500 ; SO chat limits to 500 chars if a message contains a link
 
 bot-cookie: {-get-your-own-}
