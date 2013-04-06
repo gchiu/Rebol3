@@ -1,8 +1,8 @@
 Rebol [
 	file: %rebolbot.r3
 	author: "Graham"
-	date: [28-Feb-2013 30-Mar-2013] ; leave this as a block plz!  It's used by version command
-	version: 0.0.27
+	date: [28-Feb-2013 6-Apr-2013] ; leave this as a block plz!  It's used by version command
+	version: 0.0.31
 	purpose: {post messages into the Rebol-red chat room on Stackoverflow}
 	Notes: {You'll need to capture your own cookie and fkey using wireshark or similar.}
 	License: 'Apache2
@@ -76,8 +76,6 @@ if exists? expressions [
 ]
 
 ;- configuration urls
-remote-execution-url: http://tryrebol.esperconsultancy.nl/do/REBOL
-;remote-execution2-url: http://tryrebol.esperconsultancy.nl/do/REBOL-2
 remote-execution-url: [
 	rebol3 http://tryrebol.esperconsultancy.nl/do/REBOL
 	rebol2 http://tryrebol.esperconsultancy.nl/do/REBOL-2
@@ -230,9 +228,6 @@ evaluate-by-ideone: func [message-id user pass source [string!] language [word! 
 		thru <item> <key xsi:type="xsd:string"> "link" </key>
 		<value xsi:type="xsd:string"> copy link to </value>
 		to end] [
-		;?? error
-		;?? status
-		;?? link
 		if all [
 			error/1 = "error"
 			status/1 = "OK"
@@ -254,8 +249,6 @@ evaluate-by-ideone: func [message-id user pass source [string!] language [word! 
 					]
 				)
 			]
-			;print "reached result2"
-			;probe decode 'markup result2
 			if result2 [
 				if parse decode 'markup result2 [
 					thru "source" </key>
@@ -263,8 +256,6 @@ evaluate-by-ideone: func [message-id user pass source [string!] language [word! 
 					thru "output" </key>
 					thru <value xsi:type="xsd:string"> copy output to </value> to end
 				] [
-					?? inputs
-					?? output
 					reply message-id rejoin [
 						"    RebolBot uses http://ideone.com (c) http://sphere-research.com" newline
 						"    " decode-xml inputs/1 newline
@@ -392,6 +383,75 @@ remove-key: func [message-id person person-id [integer!] content users [block!]
 	]
 ]
 
+; mini-http is a minimalistic http implementation
+mini-http: func [ url [url!] method [word! string!] code [string!] timeout [integer!]
+	/local url-obj http-request payload result port
+][
+	http-request: {$method $path HTTP/1.0
+Host: $host
+User-Agent: Mozilla/5.0
+Accept: text/html
+Referer: http://$host
+Content-Length: $len
+Content-Type: text/plain; charset=UTF-8
+
+$code}
+
+	url-obj: construct/with sys/decode-url url make object! copy [port-id: 80 path: ""]	
+	if empty? url-obj/path [ url-obj/path: copy "/" ]
+	payload: reword http-request reduce [
+		'method method
+		'path url-obj/path
+		'host url-obj/host
+		'len length? code
+		'code code
+	]
+	
+	port: make port! rejoin [tcp:// url-obj/host ":" url-obj/port-id]
+	port/awake: func [event] [
+        switch/default event/type [
+		   lookup [open event/port false ]
+           connect [write event/port to binary! join payload newline false]
+		   wrote [read event/port false]
+		   read done [
+			; probe event/port/data
+			result: to-string event/port/data true ]
+       ][ true ]
+	]
+	open port
+	either port? wait [ port timeout ][
+		result
+	][	; timeout
+		none
+	]
+]
+
+raw-read: func [ message-id target [url!]
+	/local result err
+][
+	if error? set/any 'err try [
+	either result: mini-http target 'GET "" 60 [
+		reply message-id result
+	][
+		reply message-id "HTTP timeout"
+	]
+	][
+		reply message-id mold err
+	]
+]
+
+extract-http-response: func [ http-text [string!]
+	/local result code bodytext server-code
+][
+	digit: charset [ #"0" - #"9" ]
+	either parse http-text [ thru "HTTP/1." [ "0" | "1" ] some space copy code 3 digit some space copy server-code to newline
+	thru "^/^/" copy bodytext to end ][
+		trim/head/tail bodytext
+	][
+		make object! compose [ error: (server-code) code: (code) ]
+	]
+]
+
 evaluate-expression: func [message-id expression
 	/r2 "rebol2"
 	/boron "boron"
@@ -408,7 +468,19 @@ evaluate-expression: func [message-id expression
 	]
 
 	print ["attempting evaluation at: " execute-url]
-	html: to string! write execute-url compose [POST (expression)]
+;;	html: to string! write execute-url compose [ POST (expression) ]
+;; -- this begins the change from using native http
+	if none? html: mini-http execute-url 'POST form expression 60 [
+		speak "tryrebol server timed out"
+		return
+	]
+	; speak form type? html
+	if object? html: extract-http-response html [
+		print "html is object!"
+		speak mold html
+		return
+	]
+;; --- and ends the change from using native http scheme	
 	parse html [thru <span> thru <pre> copy output to </pre>]
 	output: decode-xml output
 	; if an error, remove part of the error string and parse out the help page
@@ -826,10 +898,17 @@ process-dialect: funct [message-id person person-id expression
 		)
 	]
 
+	read-raw-rule: [
+		'read 'raw set target url! (
+			done: true
+			raw-read message-id target
+		)
+	]
+	
 	dialect-rule: [
-		(recipient: none)
+		( recipient: none )
 		show-links-by-rule |
-		show-rule |
+		show-rule | 
 		whois-rule |
 		whom-rule |
 		save-rule |
@@ -847,6 +926,7 @@ process-dialect: funct [message-id person person-id expression
 		private-session-rule |
 		find-rule |
 		who-is-online-rule |
+		read-raw-rule |
 		default-rule
 	]
 
@@ -858,7 +938,7 @@ process-dialect: funct [message-id person person-id expression
 			to block! expression
 		] [
 			if find mold err2 {arg1: "email"} [
-				replace/all expression "@" "for "
+				replace/all expression "@" "" 
 			]
 		]
 		parse expression: to block! expression dialect-rule
