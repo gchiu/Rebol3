@@ -1,6 +1,6 @@
 REBOL [
 	Title: "R3 GUI - Development Test Script"
-	Version: 0.1.3
+	Version: 0.1.4
 	Date: 27-May-2013
 ]
 
@@ -19,6 +19,24 @@ either exists? %r3-gui.r3 [
 ][ load-gui ]
 
 quick-start: none ; For specific section on start, eg. "Forms"
+
+; some functions from old R3
+pick1: make function! [[cond a b][either cond [:a] [:b]]]
+
+span-colors: func [
+	"Build a gradient color span based on multipliers."
+	color [tuple!]
+	muls [block!]
+	/local out
+] [
+	out: make block! length? muls
+	foreach v muls [
+		repend out [color * v]
+	]
+	out
+]
+
+;== end of imported functions
 
 view [
 	title "R3 Demo is pending..."
@@ -398,32 +416,32 @@ tests: [
 	"Groups"
 	"Group and panel layouts with simple contents (buttons) and tests for auto-sizing. Includes sub-panels."
 	[
-		group [
+		hgroup [
 			button "Button"
 		]
 		bar
-		group [
+		hgroup [
 			button "Button"
 			button "50x50" 50x50 180.0.0
 		]
 		bar
-		group [
+		hgroup [
 			button "50x50" 50x50 180.0.0
 			button "maxsize 200x200" options [max-size: 200x200]
 		]
 		bar
-		group 2 [
+		hgroup [
 			button "A A"
-			button "A B"
+			button "A B" return
 			button "B A"
 			button "B B"
 		]
 		bar
-		panel [
+		hpanel [
 			text "Panel example"
 			button "Button"
 		]
-		panel gray 0 [
+		hpanel gray 0 [
 			text "Gray panel example"
 			button "Button"
 			button "Button"
@@ -434,29 +452,35 @@ tests: [
 	"Progress bar with various value set tests."
 	[
 		p1: progress
-		group 4 [
-			button "Set 0%"   set 'p1 0%
-			button "Set 10%"  set 'p1 10%
-			button "Set 50%"  set 'p1 50%
-			button "Set 100%" set 'p1 100%
+		hgroup [
+			button "Set 0%"  on-action [ set-face p1 0% ]
+			button "Set 10%"  on-action [ set-face p1 10% ]
+			button "Set 50%"  on-action [ set-face p1 50% ]
+			button "Set 100%" on-action [ set-face p1 100% ]
+			return
 
-			toggle "Color" do [
-				set-facet p1 'bar-fill span-colors pick1 value red green [1.0 1.5 .6]
+			toggle "Color" on-action [
+				; not working, supposed to change the color of the progress p1
+				; the current code passes a block of 3 RGB values presumably for a gradient fill
+				; but progress now uses materials
+				set-facet p1 'bar-fill 
+				pick [ true none ] ; value returned true or none, face/state/value now returns true or false
+				face/state/value red green [1.0 1.5 .6]
 				draw-face p1
 			]
-			button "Simulate" do [
+			button "Simulate" on-action [
 				repeat n 100 [
 					set-face p1 to percent! n / 100
 					show p1/gob ; optimized
 					wait .01 ; Temporary - REMOVE !!
 				]
 			]
-			button "Lo limit" set 'p1 -10%
-			button "Hi limit" set 'p1 150%
+			button "Lo limit" on-action [ set-face  p1 -10%]
+			button "Hi limit" on-action [ set-face p1 150% ]
 		]
 		text "Bar of different color:"
 		p2: progress gold
-		button "Check color" set 'p2 50%
+		button "Check color" on-action [ set-face  p2 50% ]
 	]
 
 	"Slider"
@@ -465,21 +489,22 @@ tests: [
 		text "Drag this slider to see progress bar change:"
 		var: slider attach 'prog
 		prog: progress
-		group [
-			button "Set 0%"   set 'var 0%
-			button "Set 10%"  set 'var 10%
-			button "Set 50%"  set 'var 50%
-			button "Set 100%" set 'var 100%
+		hgroup [
+			button "Set 0%"   on-action [ set-face var 0% ]
+			button "Set 10%"  on-action [ set-face var 10% ]
+			button "Set 50%"  on-action [ set-face var 50% ]
+			button "Set 100%" on-action [ set-face var 100% ]
 		]
-		panel 2 [
+		hpanel [
 			text "Within another offset..."
 			slider green attach 'prog
-		] options [max-size: 1000x50]
+		] options [max-size: 1000x50 black border-size: [1x1 1x1]]
 	]
 
 	"Dragger"
 	"Drag test of two kinds of boxes, one bounded the other unbounded."
 	[
+		; not working - free-drag and lock-drag are not implemented
 		doc {
 			===Drag the boxes
 
@@ -487,43 +512,50 @@ tests: [
 
 			Red boxes are parent panel bounded.
 		}
-		d1: free-drag
-		d4: lock-drag red
-		panel 0 80.200.80.80 [
-			d2: free-drag
-			d3: lock-drag red
+		d1: on-action [ free-drag ]
+		d4: on-action [ lock-drag red ]
+		hpanel 0 80.200.80.80 [
+			d2: on-action [ free-drag ]
+			d3: on-action [ lock-drag red ]
 		]
 	]
 
 	"Scroller"
 	"Scrollbar with readout of value, settings for delta and value. Example panel with controls."
 	[
-		group 1 [
+		vgroup [
 			; Use a group here to avoid scroller changing all ON-SCROLL related faces
 			sbar: scroller attach 'prog
 			prog: progress
 		]
-		panel 80.200.180.80 [
+		vpanel 80.200.180.80 [
 			text "These attached faces SET the above scroller:"
 			slider attach 'sbar
 			scroller attach 'sbar
+		] options [ black border-size: [1x1 1x1]]
+		hgroup [
+			radio "Delta 10%" on-action [ set-face sbar 'delta 10%]
+			radio "Delta 50%"  on-action [ set-face sbar 'delta 50% ]
+			radio "Delta 100%" on-action [ set-face sbar 'delta 100%]
+			return
+			button "Set 0%"    on-action [ set-face sbar 0%]
+			button "Set 10%"   on-action [ set-face sbar 10%]
+			button "Set 50%"   on-action [ set-face sbar 50%]
+			return
+			button "Set 90%"   on-action [ set-face sbar 90% ]
+			button "Set 100%"  on-action [ set-face sbar 100% ]
+			button "Set 150%"  on-action [ set-face sbar 150% ]
 		]
-		group 3 [
-			radio "Delta 10%" on set 'sbar 'delta 10%
-			radio "Delta 50%"  set 'sbar 'delta 50%
-			radio "Delta 100%" set 'sbar 'delta 100%
-			button "Set 0%"    set 'sbar 0%
-			button "Set 10%"   set 'sbar 10%
-			button "Set 50%"   set 'sbar 50%
-			button "Set 90%"   set 'sbar 90%
-			button "Set 100%"  set 'sbar 100%
-			button "Set 150%"  set 'sbar 150%
-		]
-		tight 2 [
-			bc: box-cross
-			scroller attach 'bc 'valy
-			scroller attach 'bc 'valx
-		]
+		scroll-panel [
+;		tight 2 [
+;			bc: box-cross
+;			scroller attach 'bc 'valy
+;			scroller attach 'bc 'valx
+;		]
+			bc: box options [ max-size: 20x20 ] ;box-cross
+			; pad 200x200		
+			text "Supposed to be two scrollers moving a target"
+		] options [ max-size: 100x100 ]
 	]
 
 	"Text View"
@@ -532,20 +564,21 @@ tests: [
 		text "This is plain text - from a string"
 		text ["This is " bold "bold rich-text" drop italic " - from a block"]
 		text [red "This is red " bold "bold rich-text" drop drop black italic " - from a block"]
-		tight [
+		htight [
 			ts: text-box (form now)
 			scroller
 		]
-		group 4 [
-			button "Small"  set 'ts ["version is" system/version "on" now]
-			button "Medium" set 'ts (form system/standard)
-			button "Huge"   set 'ts (form system)
-			button "reset"  reset 'ts
-			button "Goto 0" do [set-face/field ts 0 'locate]
-			button "Goto 500" do [set-face/field ts 500 'locate]
-			button "Goto 5000" do [set-face/field ts 5000 'locate]
-			button "Goto tail" do [set-face/field ts tail get-face ts 'locate]
-		]
+		hgroup [
+			button "Small"  on-action [ set-face ts ["version is" system/version "on" now]]
+			button "Medium" on-action [ set-face  ts (form system/standard)]
+			button "Huge"   on-action [ set-face ts (form system)]
+			button "reset"  on-action [ do-actor ts 'on-reset none ]
+			return
+			button "Goto 0" on-action [set-face/field ts 0 'locate]
+			button "Goto 500" on-action  [set-face/field ts 500 'locate]
+			button "Goto 5000" on-action  [set-face/field ts 5000 'locate]
+			button "Goto tail" on-action  [set-face/field ts tail get-face ts 'locate]
+		]	
 		info "Info text field."
 	]
 
@@ -553,10 +586,10 @@ tests: [
 	"Text edit fields and areas. Allows keyboard input and control."
 	[
 		field "text field"
-		field "second field - reset on enter" reset
+		field "second field - reset on enter" on-action [ do-actor face 'on-reset none ] 
 		area (form system/options)
 		area (form system/standard)
-		button "Get" do [probe get-face parent-face? face]
+		button "Get" on-action [probe get-face parent-face? face]
 	]
 
 	"Drawing"
@@ -579,13 +612,13 @@ tests: [
 			fill-pen yellow
 			arc 204x196 150x150 270  90 closed
 		]
-		group [
+		vgroup [
 			drawing [
 				pen black
 				line-width 2.7
 				fill-pen red
 				circle 50x50 40
-			] print "clicked!"
+			] on-action [ print "clicked!" ]
 			drawing 200x100 [
 				pen black
 				;box
@@ -603,9 +636,9 @@ tests: [
 			]
 		]
 		text "Note: below requires image loaders"
-		group 2[
-			image print 'image1
-			image print 'image2
+		hgroup [
+			image on-action [ print 'image1 ]
+			image on-action [ print 'image2]
 		]
 	]
 
@@ -640,34 +673,34 @@ tests: [
 	"Text-List"
 	"A mini system browser using text lists."
 	[
-		group [ 
-			t1: text-list (words-of system) do [
-				if integer? value [
-					section: select system face/facets/contents/:value
+		hgroup [ 
+			t1: text-list (words-of system) on-action [
+				if integer? value: face/state/value [
+					section: select system face/facets/list-data/:value
 					either object? section [
-						set-face/field t2 words-of section 'list
+						set-face/field t2 words-of section 'data
 						set-face tb "(object)"
 					][
 						set-face tb mold section
 					]
 				]
 			]
-			t2: text-list do [
+			t2: text-list on-action  [
 				all [
-					integer? value
+					integer? value: face/state/value
 					integer? v: get-face t1
 					object? s: select system pick words-of system v ;bogus!
 					set-face tb mold select s pick words-of s value
 				]
 			]
-			tb: text-box "(value)"
+			tb: area "(value)"
 		]
 	]
 
 	"Sub-Panel"
 	"Scrolling subpanel of fixed size. Can be scrolled vertically and horizontally."
 	[
-		group 2 [
+		hgroup [
 			sub-pan: plane
 			scroller
 			scroller
@@ -685,7 +718,7 @@ tests: [
 				margin: 10x10
 				columns: 3
 			]
-			view-panel sub-pan test-sub-pan
+			view-layout sub-pan test-sub-pan
 			; Bug: something causes view to update before it's ready !!
 			; (note that you see the panel, then the switch effect)
 		]
@@ -694,17 +727,21 @@ tests: [
 	"Forms"
 	"Test of simple form, getting and setting fields too."
 	[
-		pan: group 2 [
+		pan: hgroup [
 			label "First name:"
 			f1: field
+			return
 			label "Last name:"
 			field
+			return
 			label "City:"
 			field
+			return
 			label "Email address:"
 			field
+			return
 			label "Platform:"
-			group [
+			hgroup [
 				radio "Windows" on
 				radio "OS X"
 				radio "Linux"
@@ -712,30 +749,37 @@ tests: [
 			]
 			label "Status"
 			check "First class reboler."
+			return
 			label "Time stamp:"
 			time: field silver
+			return
 			label ""
-			group 2 [
+			hgroup [
 				button "Set All"
-					set 'pan ["Roy" "Rebol" "Ukiah" "reb@example"]
-					do [set-face time now]
-				button "Clear All" clear 'pan
-				button "Submit" submit 'pan
-				button "Reset"  alert "Reset not yet defined."
-				button "Set Time" do [set-face time now]
-				button "Get Time" submit 'time
+					on-action [
+						set-layout pan ["Roy" "Rebol" "Ukiah" "reb@example"]
+						set-face time now
+					]
+				button "Clear All" on-action [ clear-layout pan ]
+				return
+				button "Submit" on-action [ submit 'pan ]
+				button "Reset"  on-action [ alert "Reset not yet defined." ]
+				return
+				button "Set Time" on-action [set-face time now]
+				button "Get Time" on-action [ submit 'time ]
 			]
 			when [enter]
-				clear 'pan
+				; clear 'pan
+				clear-layout face
 				do [set-face time now]
-				focus 'f1
+				; focus f1
 		]
 	]
 
 	"Document"
 	"Simple document markup method that uses MakeDoc format."
 	[
-		group [
+		hgroup [
 			doc {
 				===About the DOC style:
 
@@ -787,11 +831,12 @@ tests: [
 	"Clock"
 	"Here is an example of a custom style that draws an analog clock face."
 	[
-		panel coal 240x320 [
+		hpanel coal 240x320 [
 			clk: clock
-			group 2 [
+			hgroup [
 				button "10:20:30" do [set-face clk 10:20:30]
 				button "Random" do [set-face clk random 12:00]
+				return
 				button "Now"   do [set-face clk now]
 				button "Spin" do [
 					loop 60 [
@@ -800,7 +845,8 @@ tests: [
 						wait 1 / 60
 					]
 				]
-				button "Reset" reset 'clk
+				return
+				button "Reset" on-action [ do-actor clk 'on-reset none ]
 			]
 		]
 	]
@@ -826,48 +872,26 @@ tests: [
 		when [exit] set 'trig3 true
 	]
 
-	"Reactors"
-	"Tests that reactors do what they are supposed to."
-	[
-		panel 2 [
-			button "Do" do [request "Got it!" "It worked."]
-			button "Browse" browse http://www.rebol.com
-			button "Run" run %explorer
-			button "Alert" alert "This is an alert."
-		]
-		panel 2 [
-			f1: field "Field 1"
-			f2: field "Field 2"
-			button "Focus on 1" focus 'f1
-			button "Focus on 2" focus 'f2
-		]
-		panel 2 [
-			button "Close" close
-			button "Halt" halt
-			button "Quit" quit
-			button "?"
-			button "Print" print "print this message"
-			button "Dump" dump
-		]
-	]
-
 	"Windows"
 	"Test basic window options and actions. Note differences in event handling."
 	[
-		group 2 [
-			button "simple view" do [
-				view [title "Simple window with title" button "Close" close]
+		hgroup [
+			button "simple view" on-action [
+				view [title "Simple window with title" button "Close" on-action [ close-window face ]]
 			]
 			text "Really simple window"
-			button "view/across" do [
-				view/across [title "Layout across" button "Close" close]
+			return
+			button "view/across" on-action [
+				; view/across [title "Layout across" button "Close" on-action [ close-window face ]]
+				alert "not working yet"
 			]
 			text "Layout horizontally"
-			button "view/options" do [
+			return
+			button "view/options" on-action [
 				view/options [
 					title "View with options"
 					text "Options: size, color, margin, offset"
-					button "Close" close
+					button "Close" on-action [ close-window face ]
 				][
 					size: 300x300
 					area-color: silver
@@ -876,14 +900,17 @@ tests: [
 				]
 			]
 			text "Tries special options"
-			button "view/modal" do [
-				view/modal [title "Modal popup" button "Close" close]
+			return
+			button "view/modal" on-action [
+				view/modal [title "Modal popup" button "Close" on-action [ close-window face ]]
 			]
 			text "Block events to other windows"
 		]
 		bar
-		group 2 [
-			button "simple gob" do [
+		hgroup [
+			button "simple gob" on-action [
+				alert "not working yet"
+				return none
 				view make gob! [
 					size: 300x300
 					draw: [
@@ -895,7 +922,10 @@ tests: [
 				]
 			]
 			text "A raw GOB with DRAW block"
-			button "options gob" do [
+			return
+			button "options gob" on-action [
+				alert "not working yet"
+				return none
 				view/options make gob! [
 					size: 300x300
 					draw: [
@@ -916,12 +946,13 @@ tests: [
 	"Requestors"
 	"Requestor functions and results."
 	[
-		group 2 [
-			button "Ok" do [
+		hgroup [
+			button "Ok" on-action [
 				set-face r0 request "Command:" "Click OK to set checkmark."
 			]
 			r0: check "OK was clicked"
-			button "Ask" do [
+			return
+			button "Ask" on-action [
 				set-face r1 request/ask "Question:" "Click yes to set the checkmark."
 			]
 			r1: check "YES was clicked"
@@ -931,26 +962,50 @@ tests: [
 	"Read HTTP"
 	"Read via HTTP from a website and display HTTP source here."
 	[
-		when [load] do [
-			read-site: funct [site] [
+		when [load] on-action [
+			; Carl's demo doesn't use 'set and works
+			set 'read-site funct [site] [
 				set-face i1 dt [set-face t1 to-string read site] ; as UTF-8 !
 			]
+			; this wasn't needed either
+			read-site http://www.rebol.com
+			set-face t01 true
 		]
-		group [
-			toggle "REBOL.com" of 'site do [read-site http://www.rebol.com]
-			toggle "REBOL.net" of 'site do [read-site http://www.rebol.net]
-			toggle "REBOL.org" of 'site do [read-site http://www.rebol.org]
+		hgroup [
+			t01: toggle "REBOL.com" on-action [
+				set-face t02 false
+				set-face t03 false
+				if error? set/any 'err try [
+					read-site http://www.rebol.com
+				][
+					alert mold err
+				]
+			]
+			t02: toggle "REBOL.net" on-action [
+				set-face t03 false
+				set-face t01 false
+				attempt [
+					read-site http://www.rebol.net
+				]
+			]
+			t03: toggle "REBOL.org" on-action [
+				set-face t02 false
+				set-face t01 false
+				attempt [
+					read-site http://www.rebol.org
+				]
+			]
 		]
 		t1: code-area ;!!BUG - size does not expand!!
-		group [
+		hgroup [
 			;!!NEED - auto-width text (expands to necessary size)
 			text "Elapsed time:" 90x20
 			i1: info
 		]
 		bar
-		button "Run script from net" do [
-			file: %web3works.r
-			write file read join http://www.rebol.com/r3/ file
+		button "Run script from net" on-action [
+			file: %web3works.r3
+			write file read join https://raw.github.com/gchiu/Rebol3/master/scripts/ file
 			launch file
 		]
 		text [italic "Requires a direct Internet connection."]
@@ -993,7 +1048,10 @@ view-sub-panel: funct [
 			; pan: make-panel 'group pick test-blocks index [columns: 1]
 			poke test-panels index pan
 	]
-	if error? set/any 'err try  [ switch-layout main-pan pan 'fly-right][
+	if error? set/any 'err try  [ 
+		view pan
+		;switch-layout main-pan pan 'fly-right
+	][
 		alert mold err
 	]
 ]
@@ -1031,12 +1089,12 @@ view [
 				]
 				button "Halt" leaf on-action [ unview/all halt ]
 				button "Quit" maroon on-action [ quit ]
-				check "Debug"  on-actin [ do [guie/debug: if value [[all]]] ]
+				check "Debug"  on-action [ do [guie/debug: if value [[all]]] ]
 				check "Remind" guie/remind on-action [ do [guie/remind: value] ]
 			]
 		]
 	]
-	when [enter] do [
+	when [enter] on-action [
 		if quick-start [
 			if spot: find test-sections quick-start [
 				view-sub-panel index? spot main-pan desc  ; for faster testing
