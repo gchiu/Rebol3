@@ -1,6 +1,6 @@
 REBOL [
 	Title: "R3 GUI - Development Test Script"
-	Version: 0.1.4
+	Version: 0.1.5
 	Date: 27-May-2013
 ]
 
@@ -1041,6 +1041,7 @@ view-sub-panel: funct [
 			probe pick test-blocks index
 			if error? set/any 'err try [
 				pan: layout/only pick test-blocks index [columns: 1]
+				; pan: pick test-blocks index
 			][
 				alert mold err
 				return none
@@ -1049,8 +1050,9 @@ view-sub-panel: funct [
 			poke test-panels index pan
 	]
 	if error? set/any 'err try  [ 
-		view pan
+		; switch-layout is currently not working
 		;switch-layout main-pan pan 'fly-right
+		set-content main-pan pan
 	][
 		alert mold err
 	]
