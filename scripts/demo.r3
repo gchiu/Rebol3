@@ -1,7 +1,7 @@
 REBOL [
 	Title: "R3 GUI - Development Test Script"
-	Version: 0.1.5
-	Date: 27-May-2013
+	Version: 0.1.6
+	Date: 28-May-2013
 ]
 
 errout: func [msg] [if msg [print msg print "The demo cannot be shown." halt]]
@@ -13,10 +13,12 @@ errout case [
 	true [none]
 ]
 
+comment {
 ; how to check gui version?
 either exists? %r3-gui.r3 [
 	do %r3-gui.r3
 ][ load-gui ]
+}
 
 quick-start: none ; For specific section on start, eg. "Forms"
 
@@ -333,7 +335,7 @@ lock-drag: free-drag [
 
 	actors: [
 		on-drag: [ ; arg: drag
-			do-style parent-face? face 'on-offset face/gob/offset:
+			do-actor parent-face? face 'on-offset face/gob/offset:
 				min face/gob/parent/size - face/gob/size max 0x0 arg/delta + arg/base
 			draw-face face
 			do-face parent-face? face
@@ -512,12 +514,12 @@ tests: [
 
 			Red boxes are parent panel bounded.
 		}
-		d1: on-action [ free-drag ]
-		d4: on-action [ lock-drag red ]
+		d1: free-drag 
+		d4: lock-drag red 
 		hpanel 0 80.200.80.80 [
-			d2: on-action [ free-drag ]
-			d3: on-action [ lock-drag red ]
-		]
+			d2: free-drag 
+			d3: lock-drag red 
+		] options [ min-size: 100x200 ]
 	]
 
 	"Scroller"
@@ -574,10 +576,10 @@ tests: [
 			button "Huge"   on-action [ set-face ts (form system)]
 			button "reset"  on-action [ do-actor ts 'on-reset none ]
 			return
-			button "Goto 0" on-action [set-face/field ts 0 'locate]
-			button "Goto 500" on-action  [set-face/field ts 500 'locate]
-			button "Goto 5000" on-action  [set-face/field ts 5000 'locate]
-			button "Goto tail" on-action  [set-face/field ts tail get-face ts 'locate]
+			button "Goto 0" on-action [ move-cursor ts 'home 1000 no ] ;[set-face/field ts 0 'locate]
+			button "Goto 500" on-action  [ move-cursor ts 500 no ] ;[set-face/field ts 500 'locate]
+			button "Goto 5000" on-action  [set-face/field ts 5000 no]
+			button "Goto tail" on-action  [ move-cursor ts 'tail no no ] ;[set-face/field ts tail get-face ts 'locate]
 		]	
 		info "Info text field."
 	]
@@ -697,6 +699,17 @@ tests: [
 		]
 	]
 
+	"Text-Table"
+	"A sortable table"
+	[
+		text-table 200x200  [ "First name" #1 250 "Surname" #2 300 "Age" #4 50 number] 
+			[
+				["John" "Doe" NY 45]
+				["Erica" "Stone" CA 19 none "note 1"]
+				["James" "Cole" FL 5 "note 2"]
+			]
+	]
+	
 	"Sub-Panel"
 	"Scrolling subpanel of fixed size. Can be scrolled vertically and horizontally."
 	[
@@ -724,6 +737,20 @@ tests: [
 		]
 	]
 
+	"Tab-Box"
+	"A tabbed layout aka tab-panel"
+	
+	[
+		tab-box 200x200 [
+			"Tab1" [
+				text "A layout lies here"
+			]
+			"Tab2" [
+				text "A second layout lies here"
+			]
+		]
+	]
+	
 	"Forms"
 	"Test of simple form, getting and setting fields too."
 	[
@@ -827,7 +854,11 @@ tests: [
 			scroller
 		]
 	]
-
+	"Color-Box"
+	"A Color picker"
+	[
+		color-picker
+	]
 	"Clock"
 	"Here is an example of a custom style that draws an analog clock face."
 	[
@@ -863,13 +894,13 @@ tests: [
 	[
 		text "Triggers (When events):"
 		trig1: check "Triggered on load"
-		when [load] set 'trig1 true
+		when [load] on-action [ set-face trig1 true ]
 
 		trig2: check "Triggered on view"
-		when [enter] set 'trig2 true
+		when [enter] on-action [ set-face trig2 true ]
 
 		trig3: check "Triggered on exit"
-		when [exit] set 'trig3 true
+		when [exit] on-action [ set-face trig3 true ]
 	]
 
 	"Windows"
