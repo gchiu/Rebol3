@@ -1,7 +1,7 @@
 REBOL [
 	Title: "R3 GUI - Development Test Script"
-	Version: 0.1.6
-	Date: 28-May-2013
+	Version: 0.1.7
+	Date: 29-May-2013
 ]
 
 errout: func [msg] [if msg [print msg print "The demo cannot be shown." halt]]
@@ -56,7 +56,7 @@ view [
 	hgroup [
 		button "Run Test" on-action [ close-window face ]
 		button "Quit" on-action [ 
-			probe ia/gob/size
+			; probe ia/gob/size
 			close-window face quit 
 		]
 	]
@@ -302,10 +302,11 @@ draw-box: [
 
 color-chip: clicker [
 
-	about: "Shows a color. Clicking on it will bring up color requestor."
+	about: "Shows a color. Clicking on it will bring up color requestor one day."
 
 	facets: [
 		size: 18x18
+		max-size: 18x18
 	]
 ]
 
@@ -365,11 +366,11 @@ box-cross: box [
 		pen 30.30.30
 		line-width 1.5
 		fill-pen snow
-		box 1x1 area-size 3
+		box 1x1 ;area-size 3
 		fill-pen yellow
 		circle cross-xy 5
-		line (cross-xy - 8x0) (cross-xy + 8x0)
-		line (cross-xy - 0x8) (cross-xy + 0x8)
+		;line (cross-xy - 8x0) (cross-xy + 8x0)
+		;line (cross-xy - 0x8) (cross-xy + 0x8)
 	]
 
 	actors: [
@@ -519,7 +520,7 @@ tests: [
 		hpanel 0 80.200.80.80 [
 			d2: free-drag 
 			d3: lock-drag red 
-		] options [ min-size: 100x200 ]
+		] options [ min-size: 300x300 ]
 	]
 
 	"Scroller"
@@ -548,16 +549,12 @@ tests: [
 			button "Set 100%"  on-action [ set-face sbar 100% ]
 			button "Set 150%"  on-action [ set-face sbar 150% ]
 		]
-		scroll-panel [
-;		tight 2 [
-;			bc: box-cross
-;			scroller attach 'bc 'valy
-;			scroller attach 'bc 'valx
-;		]
-			bc: box options [ max-size: 20x20 ] ;box-cross
-			; pad 200x200		
-			text "Supposed to be two scrollers moving a target"
-		] options [ max-size: 100x100 ]
+		htight 2 [
+			bc: box-cross
+			;scroller ; attach 'bc ;'valy
+			;return
+			;scroller ; attach 'bc ;'valx
+		]
 	]
 
 	"Text View"
@@ -602,7 +599,7 @@ tests: [
 			line-width 4
 			grad-pen radial 0 200 [0.0.100 100.0.0]
 			box 3x3 190x190 5
-			scale .5 .5
+			; scale .5 .5 ; now uses a pair but not implemented correctly
 			pen snow
 			line-width 4
 			fill-pen red
@@ -647,29 +644,34 @@ tests: [
 	"Draw It"
 	"Tests interactive drawing. Click and drag to draw new shapes."
 	[
-		group [
-			group 1 [
-				radio "Box" on do [set-facet pb 'mode 'box]
-				radio "Circle" do [set-facet pb 'mode 'circle]
-				radio "Line" do [set-facet pb 'mode 'line]
-				bar
-				group 2 [
-					;<-need color-chip style
-					color-chip black alert "Need color requestor"
-					text "Line color"
-					color-chip leaf alert "Need color requestor"
-					text "Fill color"
-				]
-				text "Line width:" 100x16
-				slider 100x20 do [set-facet pb 'line-size 30 * value draw-face pb]
-				text "Box rounding:" 100x16
-				slider 100x20 do [set-facet pb 'corner 30 * value draw-face pb]
-				pad
-				button "Undo" do [do-style pb 'on-undo none]
-				button "Help" browse http://www.rebol.net/wiki/R3_GUI
-			] options [max-size: 100x1000]
-			pb: draw-box
+	hgroup [
+	vgroup [
+		vgroup [
+			radio "Box" on-action [set-facet pb 'mode 'box]
+			radio "Circle" on-action [set-facet pb 'mode 'circle]
+			radio "Line" on-action [set-facet pb 'mode 'line]
+			bar
 		]
+
+		hgroup [
+			;<-need color-chip style
+			color-chip black on-action [ alert "Need color requestor" ]
+			text "Line color"
+			return
+			color-chip leaf on-alert [ alert "Need color requestor"]
+			text "Fill color"
+		]
+		text "Line width:" 100x16
+		slider 100x20 on-action [set-facet pb 'line-size 30 * arg draw-face pb]
+		text "Box rounding:" 100x16
+		slider 100x20 on-action [set-facet pb 'corner 30 * arg draw-face pb]
+		pad
+		button "Undo" on-action [do-style pb 'on-undo none]
+		button "Help" on-action [browse http://www.rebol.net/wiki/R3_GUI]
+	] options [max-size: 100x1000]
+
+	pb: box 200x100 white ; draw-box
+	]
 	]
 
 	"Text-List"
@@ -677,7 +679,7 @@ tests: [
 	[
 		hgroup [ 
 			t1: text-list (words-of system) on-action [
-				if integer? value: face/state/value [
+				if integer? value: arg [
 					section: select system face/facets/list-data/:value
 					either object? section [
 						set-face/field t2 words-of section 'data
@@ -759,13 +761,13 @@ tests: [
 			f1: field
 			return
 			label "Last name:"
-			field
+			f2: field
 			return
 			label "City:"
-			field
+			f3: field
 			return
 			label "Email address:"
-			field
+			f4: field
 			return
 			label "Platform:"
 			hgroup [
@@ -784,21 +786,24 @@ tests: [
 			hgroup [
 				button "Set All"
 					on-action [
-						set-layout pan ["Roy" "Rebol" "Ukiah" "reb@example"]
+						set-layout pan make object! [ f1: "Roy" f2: "Rebol" f3: "Ukiah" f4: "reb@example"]
 						set-face time now
 					]
 				button "Clear All" on-action [ clear-layout pan ]
 				return
-				button "Submit" on-action [ submit 'pan ]
-				button "Reset"  on-action [ alert "Reset not yet defined." ]
+				button "Submit" on-action [ 'submit 'pan ]
+				button "Reset"  on-action [ 
+					do-actor pan 'on-reset none
+					; alert "Reset not yet defined." 
+				]
 				return
 				button "Set Time" on-action [set-face time now]
-				button "Get Time" on-action [ submit 'time ]
+				button "Get Time" on-action [ 'submit 'time ]
 			]
 			when [enter]
 				; clear 'pan
 				clear-layout face
-				do [set-face time now]
+				on-action [set-face time now]
 				; focus f1
 		]
 	]
@@ -1074,7 +1079,8 @@ view-sub-panel: funct [
 				pan: layout/only pick test-blocks index [columns: 1]
 				; pan: pick test-blocks index
 			][
-				alert mold err
+				print mold err
+				alert mold/all err
 				return none
 			]
 			; pan: make-panel 'group pick test-blocks index [columns: 1]
@@ -1085,7 +1091,8 @@ view-sub-panel: funct [
 		;switch-layout main-pan pan 'fly-right
 		set-content main-pan pan
 	][
-		alert mold err
+		; probe mold err
+		alert mold/all err
 	]
 ]
 
