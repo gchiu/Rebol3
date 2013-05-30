@@ -1,7 +1,7 @@
 REBOL [
 	Title: "R3 GUI - Development Test Script"
-	Version: 0.1.7
-	Date: 29-May-2013
+	Version: 0.1.8
+	Date: 30-May-2013
 ]
 
 errout: func [msg] [if msg [print msg print "The demo cannot be shown." halt]]
@@ -704,12 +704,20 @@ tests: [
 	"Text-Table"
 	"A sortable table"
 	[
+		vgroup [
 		text-table 200x200  [ "First name" #1 250 "Surname" #2 300 "Age" #4 50 number] 
 			[
 				["John" "Doe" NY 45]
 				["Erica" "Stone" CA 19 none "note 1"]
 				["James" "Cole" FL 5 "note 2"]
 			]
+		on-action [ 
+			row: pick get-facet face 'table-data arg/y
+			cell: pick row arg/x		
+			set-face ttfld cell
+		]
+		ttfld: field 
+		]
 	]
 	
 	"Sub-Panel"
