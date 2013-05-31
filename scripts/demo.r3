@@ -1,6 +1,6 @@
 REBOL [
 	Title: "R3 GUI - Development Test Script"
-	Version: 0.1.9
+	Version: 0.1.10
 	Date: 31-May-2013
 ]
 
@@ -52,7 +52,7 @@ view [
 
 		Note that we are using the development theme GUI,
 		not the default skin.
-	} options [ min-size: 480x200 ]
+	} options [ min-hint: 430x200 ]
 	hgroup [
 		button "Run Test" on-action [ close-window face ]
 		button "Quit" on-action [ 
@@ -1113,7 +1113,7 @@ view [
 		; List of test sections:
 		text-list test-sections on-action [
 			view-sub-panel face/state/value	main-pan desc
-		] options [ min-hint: 120x300 max-size: 120x1000  max-hint: 'keep]
+		] options [ min-hint: 120x300 max-size: 120x800  max-hint: 'keep]
 
 		; Panel for showing test results:
 		vpanel [
@@ -1121,11 +1121,12 @@ view [
 			options [
 				max-size: 2000x40
 				text-style: 'bold
+				max-hint: 2000x40
 			]
 
 			main-pan: hpanel [
 				doc instructions
-			] options [min-hint: 800x800 max-size: 1000x900 max-hint: 'keep]
+			] options [min-hint: 800x500 max-size: 1200x1000 max-hint: 'keep] ; system/view/screen-gob/size
 
 			hgroup [
 				button "Source" on-action [
@@ -1140,7 +1141,7 @@ view [
 				check "Debug"  on-action [ do [guie/debug: if value [[all]]] ]
 				check "Remind" guie/remind on-action [ do [guie/remind: value] ]
 			]
-		]
+		] options [min-hint: [110 auto]] 
 	]
 	when [enter] on-action [
 		if quick-start [
