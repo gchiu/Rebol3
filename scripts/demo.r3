@@ -1,7 +1,7 @@
 REBOL [
 	Title: "R3 GUI - Development Test Script"
-	Version: 0.1.8
-	Date: 30-May-2013
+	Version: 0.1.9
+	Date: 31-May-2013
 ]
 
 errout: func [msg] [if msg [print msg print "The demo cannot be shown." halt]]
@@ -1113,7 +1113,7 @@ view [
 		; List of test sections:
 		text-list test-sections on-action [
 			view-sub-panel face/state/value	main-pan desc
-		]
+		] options [ min-hint: 120x300 max-size: 120x1000  max-hint: 'keep]
 
 		; Panel for showing test results:
 		vpanel [
@@ -1125,7 +1125,7 @@ view [
 
 			main-pan: hpanel [
 				doc instructions
-			] options [min-size: 300x500 max-size: 1000x1000]
+			] options [min-hint: 800x800 max-size: 1000x900 max-hint: 'keep]
 
 			hgroup [
 				button "Source" on-action [
