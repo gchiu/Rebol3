@@ -1,7 +1,7 @@
 REBOL [
 	Title: "R3 GUI - Development Test Script"
-	Version: 0.1.10
-	Date: 31-May-2013
+	Version: 0.1.11
+	Date: 1-June-2013
 ]
 
 errout: func [msg] [if msg [print msg print "The demo cannot be shown." halt]]
@@ -13,12 +13,10 @@ errout case [
 	true [none]
 ]
 
-comment {
 ; how to check gui version?
 either exists? %r3-gui.r3 [
 	do %r3-gui.r3
 ][ load-gui ]
-}
 
 quick-start: none ; For specific section on start, eg. "Forms"
 
@@ -599,7 +597,7 @@ tests: [
 			line-width 4
 			grad-pen radial 0 200 [0.0.100 100.0.0]
 			box 3x3 190x190 5
-			; scale .5 .5 ; now uses a pair but not implemented correctly
+			scale .5 .5 ; now uses a pair but not implemented correctly
 			pen snow
 			line-width 4
 			fill-pen red
@@ -705,7 +703,8 @@ tests: [
 	"A sortable table"
 	[
 		vgroup [
-		text-table 200x200  [ "First name" #1 250 "Surname" #2 300 "Age" #4 50 number] 
+		text "E on a cell will allow you to edit a text cell.  Crashes on integer cell"
+		text-table 200x200  [ "First name" #1 250 "Surname" #2 300 "Age" #4 50 ] 
 			[
 				["John" "Doe" NY 45]
 				["Erica" "Stone" CA 19 none "note 1"]
@@ -1126,7 +1125,7 @@ view [
 
 			main-pan: hpanel [
 				doc instructions
-			] options [min-hint: 800x500 max-size: 1200x1000 max-hint: 'keep] ; system/view/screen-gob/size
+			] options [init-hint: 800x700 min-hint: 800x500 max-size: 1200x1000 max-hint: 'keep] ; system/view/screen-gob/size
 
 			hgroup [
 				button "Source" on-action [
