@@ -1,0 +1,488 @@
+Dialog Prototype Notes
+
+	Author: Henrik Mikael Kristensen
+	Date: 25-Jul-2010
+
+===Notes
+
+The dialog prototype aims to provide a complete and scalable dialog system for the R3 GUI.
+
+The prototype is available in <tt>trunk/r3-gui/tests/dialog.r3</tt>.
+
+This document discusses design decisions for the dialog prototype as well as general usage.
+
+---Facts
+
+* The dialog prototype is around 400 lines of code, including all button groups and layouts for 17 different dialogs. Some of these are not complete, due to some styles in the R3 GUI not being completed, but they are added for consideration.
+
+* The dialog system depends on the validation prototype in <tt>validation.r3</tt> as some dialogs use validation.
+
+* You can build as many different dialogs as you want against a couple of functions and styles. The prototype makes them easy to extend. No more special case, hardcoded dialogs.
+
+* You can build entire forms and manage them with validation and submission control. It's no longer for simple messages.
+
+* The design is so that users should not need to create custom dialogs directly on the spot.
+
+* Currently the R3 GUI suffers from ugly, useless styles, due to the new resizing scheme, so there are no screenshots of dialogs.
+
+===Dialogs
+
+All dialogs are built the same way:
+
+:Window - The window that contains the dialog. It's created just before the dialog is going to be displayed. The window is currently a modal window which in the R3 GUI doesn't have a window title. The dialogs are always centered on screen.
+
+:Content - The content as a single style. There is a collection of standard layouts available in the prototype. Content can be <tt>set-face</tt>'d <tt>get-face</tt>'d and validated.
+
+:Buttons - The list of buttons at the bottom of the dialog. This is optional.
+
+---Usage
+
+To use a dialog, simply call it. It will block execution and when closed, it returns a value that you can act on:
+
+	if question "Are you sure?" [do something]
+
+Some dialogs don't provide any feedback and can be used for simple messages:
+
+	alert "Something bad happened"
+
+Some are not possible to operate, such as flash, and you must close then programmatically:
+
+	f: flash "Please wait..."
+	... do something ...
+	unview f
+
+---Life Cycle of Dialog
+
+The following procedure is an example for the life cycle of the email dialog (one of the more advanced ones).
+
+* <tt>request-email</tt> is called by the user.
+
+* The <tt>create-dialog</tt> function is called from <tt>request-email</tt>.
+
+* Then a callback function is created inside <tt>create-dialog</tt>. This callback is used to handle a successful result and will be used later, when creating the dialog face tree. It's possible here to pass a custom callback function.
+
+* <tt>create-dialog</tt> builds the window as a layout block from 1. the requested content and 2. the requested button group which is then passed to <tt>make-window-panel</tt>.
+
+* The resulting face tree then has the content part set from arguments passed from <tt>request-email</tt> in case values are required in the form.
+
+* When that is done, the form is validated to <b>initial condition</b>, to indicate which parts need to be filled and to focus an appropriate face.
+
+* The dialog is displayed.
+
+* When you are done filling the dialog, clicking one of the buttons yields:
+
+** When clicking "Send", the dialog is validated. If the dialog is found to be invalid, the window is kept open and the validation indicators are displayed with status of the problem, adhering to the rules set up by the validation prototype.
+
+** When the problem is fixed and the form validates, the form content is then stored in the window face, using the <tt>submit</tt> reactor and the aforementioned callback. The form content would be an object.
+
+** Instead, when clicking "Cancel", the <tt>close</tt> reactor is called with a <tt>false</tt> value, setting the window face value to <tt>false</tt>.
+
+* The dialog is then closed.
+
+* <tt>request-email</tt> ends and the value from the window face is returned, either as an object on content or a <tt>false</tt> value on cancel.
+
+---Dialog Functions
+
+The life cycle varies a bit, depending on the complexity of the dialog, but the base pattern is the same:
+
+In the prototype, requesting a dialog to be displayed, happens through one of the functions that begin with <tt>request-*</tt> or the simpler dialogs, like <tt>notify</tt>, <tt>alert</tt>, <tt>flash</tt> or <tt>question</tt>.
+
+Each function can accept different refinements or optional arguments. The number of arguments needed for a particular dialog can vary.
+
+Each function maps their arguments and refinements to the <tt>create-dialog</tt> function to build a dialog from a list of options that are specific to that dialog. For example the <tt>request-email</tt> function uses <tt>/to</tt>, <tt>/subject</tt> and <tt>/body</tt> refinements to specify each section in an email. Inside request-email, they are converted to an object, which is then passed to <tt>create-dialog</tt>.
+
+The <tt>create-dialog</tt> function has these arguments:
+
+:title - The title of the dialog. This is either a custom text or a standard string that says <tt>"Dialog"</tt>, if <tt>none</tt> is passed.
+
+:layout - The layout that the dialog uses. The layout is referenced by a word, which is the name of a style. It's not allowed to pass a layout description directly here, to avoid messing up the interface boundaries of dialogs.
+
+:values - The values that are passed to the dialog for display inside it. These are mapped from the dialog function to <tt>create-dialog</tt> through its refinements and arguments. The values are gathered into a single value or object that can be passed to the layout through a single <tt>set-face</tt> call.
+
+:buttons - The list of buttons that appear at the bottom of the dialog. This can be referenced from an existing list of buttons by a word or by a layout block.
+
+See examples in <b>Dialog Examples</b> below.
+
+---Content
+
+Each dialog uses a separate content layout that is not defined inside the dialog function. Instead, it's defined elsewhere using <tt>stylize</tt> and made as a style.
+
+The reason for doing this is to allow to take advantage of actors and particularly to allow special setups for the <tt>on-get</tt> and <tt>on-set</tt>.
+
+Also the reason to separate the content description from the dialog is to avoid very large dialog functions, as they already may spend some lines gathering data for the content.
+
+All dialog layouts are stored as <tt>layout-*</tt> names in the prototype.
+
+This builds a clean interface between the content and the rest of the dialog as well as the <tt>create-dialog</tt> function, because:
+
+* The content must be set with <i>one</i> <tt>set-face</tt> call.
+
+* The content must be retrieved with <i>one</i> <tt>get-face</tt> call.
+
+* The content must be validated with <i>one</i> <tt>validate-panel/init</tt> call and one <tt>indicate-panel</tt> call on display.
+
+* The content must be validated with <i>one</i> <tt>validate-panel</tt> call and one <tt>indicate-panel</tt> call on submit.
+
+There are no limits to the amount of columns or rows you are allowed to use.
+
+The layout panel can be referred to by reactors using the <tt>'content</tt> lit-word!. Note that this refers to the panel face and not <tt>face/faces</tt> for the panel face.
+
++++Example:
+
+This is the style for a very simple dialog where you can enter a value in a field, <tt>layout-value</tt>:
+
+	stylize [
+		LAYOUT-VALUE: LAYOUT-FIELD [
+			about: "Value field for dialog"
+			content: [
+				label "Enter Value" value: field
+			]
+		]
+	]
+
+The style for <tt>layout-email</tt> contains validation:
+
+	LAYOUT-EMAIL: LAYOUT-FIELD [
+		about: "Email form for dialog"
+		facets: [
+			validate: 'not-empty
+			required: true
+			columns: 3
+		]
+		content: [
+			label "To"
+				to: field
+					validate
+					indicate
+					options [validate: [not-empty email]]
+				indicator
+			label "Subject"
+				subject: field
+					validate
+					indicate
+				indicator
+			label "Text"
+				text: text-area
+					validate
+					indicate
+				indicator
+		]
+	]
+
+Thanks to the validation prototype, the scoping allows specifying general validation options in <tt>face/facets</tt>, rather than needing one per face. Doing that is the same as specifying it for the panel or group, which <tt>layout-email</tt> creates.
+
+Each face uses a <tt>validate</tt> and an <tt>indicate</tt> reactor as well as an <tt>indicator</tt> style. See the validation prototype for those.
+
+Note that <tt>text-area</tt> is shown here, but this style currently doesn't work in the R3-GUI.
+
++++Content with Callbacks
+
+At times, you want to create a dialog that can submit its content or other data to the background window without closing the dialog. This is the case where you have an "Apply" button in the button group in the dialog or for tool windows which need to feed back values to the background UI in real time.
+
+Therefore the content block is bound to the <tt>callback</tt> function inside <tt>create-dialog</tt>. It's not bound in any way to facets, so it can't be used inside actors. Perhaps this will be added.
+
+This means that you can use <tt>callback</tt> as arguments to reactors that accept functions, such as <tt>submit</tt>, which uses it as the second argument:
+
+	field submit none callback
+
+See the <tt>create-dialog</tt> function above to see how to pass a custom callback function.
+
++++Buttons with Callbacks
+
+The buttons use the same <tt>callback</tt> too and the principle is the same as for the content block, mentioned above, by passing it to reactors that accept functions as arguments.
+
+---Button Groups
+
+Button groups, like layouts are stored as standard blocks of layouts that can be referenced by a single word. The button groups use two special button styles that have been defined for dialogs:
+
+:true-button - This is a button that poses a positive outcome, i.e. answer "yes" to a question or submit content of dialog.
+
+:false-button - This is a button that poses a negative outcome, i.e. answer "no", "cancel" or "close" to a dialog.
+
+For now, these buttons don't do much else than display buttons in different colors, but they are there to allow this to be extended later.
+
+The complete list is:
+
+	close
+	ok
+	ok-cancel
+	use-cancel
+	save-cancel
+	send-cancel
+	save-apply-cancel
+	yes-no
+	yes-no-cancel
+	retry-cancel
+
+To create a single button group, you create a block, like a regular layout.
+
+The centered <tt>close</tt> button group uses pads and a standard <tt>close</tt> reactor:
+
+	[pad true-button "Close" close pad]
+
+The <tt>use-cancel</tt> button group uses the <tt>dismiss</tt> reactor explained in the next section:
+
+	[true-button "Use" dismiss pad false-button "Cancel" close false]
+
++++Interaction with dialog
+
+---Reactors
+
+The new dialog reactor <tt>dismiss</tt> is primarily used with the button group, as the function is used to close the window.
+
+* It gathers the data for the <tt>content</tt> part of the dialog. If no value is passed to this argument, the window face is used. This makes the reactor useful in other situations.
+
+* Checks that the content part is valid using <tt>valid-panel?</tt> Note that you must here either have performed validation, using the <tt>validate</tt> reactor here, or you shouldn't use validation at all. Both situations will allow it to pass.
+
+* If validation succeeds, the dialog is closed.
+
+* If validation fails, the dialog remains open.
+
+As validation has been added, its reactors are designed to work in sequence with <tt>dismiss</tt>, <tt>close</tt> and <tt>submit</tt>.
+
+<b>Remember to use <tt>'content</tt> as the face to test whether it's valid.</b>
+
++++Examples
+
+A close button will simply close the window unconditionally. This stores the value none, which is returned by <tt>create-dialog</tt>:
+
+	true-button "Close" close
+
+A cancel button will close the window unconditionally, and store the value <tt>false</tt>, which is returned by <tt>create-dialog</tt>:
+
+	false-button "Cancel" close false
+
+A save button will 1. validate, 2. save data, 3. indicate validation and 3. close the dialog on validation success. The value returned is that of the <tt>'content</tt> panel:
+
+	true-button "Save"
+		validate 'content
+		submit 'content call-back
+		indicate 'content
+		dismiss 'content
+
+An apply button will validate and save data, but not close the dialog, and thus not return from <tt>create-dialog</tt>:
+
+	true-button "Save"
+		validate 'content
+		submit 'content call-back
+		indicate 'content
+
+---Dialog Examples
+
+This dialog shows a simple string with an informative alert icon using the <tt>layout-alert</tt> style. It then shows an <tt>OK</tt> button, to allow you to close the dialog. The OK button comes from a standard button group, called <tt>ok</tt>, and displays a single, centered button:
+
+	alert: func [text /title ttl] [
+		create-dialog ttl 'layout-alert text 'ok
+	]
+
+This dialog has only two differences: One is that it uses a different style, <tt>layout-question</tt> and it uses a different standard button group.
+
+	question: func [text /title ttl] [
+		create-dialog ttl 'layout-question text 'yes-no
+	]
+
+This dialog maps input values from various refinements to an object that can be passed to the <tt>layout-email</tt> style, via <tt>create-dialog</tt>:
+
+	request-email: funct [
+		/to email-to
+		/subject email-subject
+		/body email-body
+		/title ttl
+	] [
+		vals: make object! [
+			to: email-to
+			subject: email-subject
+			text: email-body
+		]
+		create-dialog ttl 'layout-email vals 'send-cancel
+	]
+
+---List of Dialogs
+
+:request-dir - Displays a directory requester for selecting a directory and making new ones.
+
+:request-file - Displays a file requester for selecting or saving a file.
+
+:request-color - Displays a color requester. A blocking equivalent to <tt>tool-color</tt>.
+
+:request-font - Displays a font requester. A blocking equivalent to <tt>tool-font</tt>.
+
+:request-email - Displays an email form with recipient, subject and body text. Full validation is provided.
+
+:request-message - Displays a form where you can select a user and a message to write to this user. Full validation is provided.
+
+:request-report - Displays a table or document, to which a report has been passed. A report is a block of information that is suited for display in a table. This is used to provide various types of complex status information.
+
+:request-user - Displays a user/password field combination.
+
+:request-pass - Displays a single password field.
+
+:request-rename - Displays the old name as text and allows entering a new name. Used when renaming an item.
+
+:request-value - Displays a single field for entering a value.
+
+:question - Poses a question to which you must answer "Yes" or "No". <tt>True</tt> or <tt>false</tt> is returned.
+
+:notify - Displays a notification message with an OK button. Used when informing the user of trivial information.
+
+:alert - Displays a notification message with an OK button. Stronger emphasis than <tt>notify</tt>. Used when operation requires a bit extra attention.
+
+:warn - Displays a notification message with an OK button. Used during dangerous operations.
+
+:flash - Displays a momentary text message. Good for messages where you need to wait for a bit.
+
+:about-program - Displays a compiled list of information from the header of the script.
+
+===Tool Windows
+
+Tool windows are basically dialogs that stay open, don't have a button group, don't block and continuously feed back results via callback.
+
+This is useful for color requesters, where you need to set the color of an element in real time. The work flow for dialogs encourage deeper, direct manipulation of an element in a user interface, such as setting the color for text and getting real time feedback.
+
+All tool windows are built in the same way:
+
+:Window - The creation process for the tool window is the same as for dialogs, but by using <tt>create-dialog</tt> using the <tt>/tool</tt> refinement.
+
+:Content - The content is the same as for dialogs, although some layouts may be more optimized for tool windows than for dialogs. There are no restrictions on usage.
+
+:Callback - Here, the callback is required, because without one, the tool window is basically useless.
+
+---Usage
+
+To open a tool window, you need to call it, pass a value and pass a callback:
+
+	view [
+		color-button do [
+			tool-color 250.0.150 func [face color] [
+				set-face face color ; update callers color
+			]
+		]
+	]
+
+The function returns immediately with <tt>true</tt>, so you can do something else in the program.
+
+---Life Cycle of Tool Windows
+
+Tool windows behave differently from requesters in that they are more useful over longer periods of time and with higher degrees of interactivity.
+
+The following occurs:
+
+* <tt>tool-color</tt> is called with a title and a callback function.
+
+* This calls <tt>create-dialog</tt> with the <tt>/tool</tt> refinement, which requires the name of the tool window.
+
+* It's added to a stack of tool windows currently in use, using the function name <tt>tool-color</tt> as argument.
+
+* The window is formed using <tt>make-window-panel</tt>.
+
+** If the window is already in the stack, by searching for the <tt>tool-color</tt> name, the window should already be open and then it would be made active and moved to front. This prevents opening multiple identical tool windows.
+
+** The callback is rebound for the window.
+
+** The window title is changed.
+
+** The value of the window content is then set by a single <tt>set-face</tt> from the <tt>create-dialog</tt> value argument.
+
+** If the window is not in the stack, the window is formed using <tt>make-window-panel</tt>.
+
+** The value of the content is set using a single <tt>set-face</tt> call from the <tt>create-dialog</tt> value argument.
+
+** The window is displayed, using <tt>view</tt> without <tt>/modal</tt> refinement. This makes the window non-blocking.
+
+* Adjustments in the dialog may trigger the callback, depending on the functionality specified in the <tt>layout-color</tt> style.
+
+* The callback performs its action via the face and content value argument.
+
+* When the user is done with the window, it's closed with the native window close button. There are no conditions or validations occurring here, so it's possible to close the window with incorrect information. This is partially intentional, as I'm not sure it's a good idea to allow tool windows to be kept open, as there is no way to "cancel" a tool window.
+
+---Not using Multiple Tool Windows
+
+The case for not using multiple tool windows comes from OSX, where only one tool window of a kind is allowed at a time. In OSX, the tool windows are bound to an application, and tool windows will disappear from view, when the application is not active, thus allowing a new set of tool windows to be used in another application.
+
+This is not possible to do here, unless we figure out a way to determine when the process where the tool windows are open is made active or made inactive. If that feature was made, it could be added.
+
+---Tool Window Examples
+
+This provides the color selection window, a tool window counterpart to <tt>request-color</tt>:
+
+	tool-color: func [color callback /title ttl] [
+		create-dialog/tool/callback ttl 'layout-color color 'tool-color callback
+	]
+
+---List of Tool Windows
+
+:tool-color - Displays a color palette for adjusting the color requested by the caller. A non-blocking equivalent to <tt>request-color</tt>.
+
+:tool-font - Displays a font palette for adjusting the font requested by the caller. A non-blocking equivalent to <tt>request-font</tt>.
+
+===Report Windows
+
+Report windows are windows that do nothing but display information and are wholly controlled by the program. In a sense they are "inverse tool windows" in that information flows from the program to the user instead of from the user to the program.
+
+The idea is to make it simple to display and update read-only windows during longer periods of waiting or when you need something constantly updated in the background.
+
+Examples of such information can be clocks, statistics, progress bars, audio VU meters or log windows that you glance at once in a while.
+
+A report window can be updated manually or automatically.
+
+---Usage
+
+	progress: report-progress func [val] [val]
+
+This opens a progress bar and runs the update-report function internally
+
+Then when the progress bar needs to be updated, call the <tt>update-report</tt> function:
+
+	update-report progress 50%
+
+Alternatively, an update frequency can be specified:
+
+	progress: report-time/rate func [val] [now/precise] 0:0:1
+
+This opens a clock window and runs <tt>update-report</tt> automatically once a second.
+
+---Report Window Examples
+
+:Window - The report window
+
+:Content - The content
+
+:Callback - The callback is used to pass information to the window for updating it. The callback should send one single value to the window.
+
+---Life Cycle of a Report Window
+
+* 
+
+* The report window is opened.
+
+* The report window is closed.
+
+---List of Report Windows
+
+:report-progress - displays a progress bar
+
+:report-time - displays a simple clock
+
+:report-detail - displays a report
+
+===Problems
+
+---Caveats
+
+* You have to remember to use reactors in a specific sequence for them to work properly for buttons.
+
+* Dialogs have no title bar and are blocking. Coincidentally, this means the window close button does not exist and would have to be handled if it did.
+
+* Callbacks have to be bound to <tt>face/content</tt> prior to making the dialog inside <tt>create-dialog</tt>, as well as the button group. There should be a better way.
+
+* Tool windows won't yet have the native tool window appearance.
+
+* Some features in tool windows require an ability to detect when the process that controls the tool windows is active or not, for them to work properly.
+
+---Data Storage
+
+For certain dialogs and tool windows, it makes sense to keep certain data across multiple life cycles, such as a color palette or a remembered directory in <tt>request-dir</tt>.
+
+For some dialogs, it can be quite a bit of information, such as remembered states or opened tab, where multiple values are used to re-establish a dialog.
+
+It's to be determined, whether it's more appropriate for the user or for REBOL to handle these details, but for now, the details are left to the user. Perhaps leaving it to REBOL can be a security hole.

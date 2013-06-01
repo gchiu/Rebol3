@@ -1,0 +1,33 @@
+R3 GUI GOB Capture
+
+	Author: Henrik Mikael Kristensen
+	Type: Specification Document
+	Date: 31-Jan-2011
+
+===Premise
+
+For documentation purposes, it's necessary to have the R3 GUI create screenshots of the GUI to be saved in PNG format. This is also something that can be useful in the case of sending bug reports.
+
+The idea is that screenshots in documentation and bug reports should be as automated a process as possible, so goals are:
+
+# Avoid having to use 3rd party screenshot applications.
+
+# Store screenshots internally as image! for later processing.
+
+# Save files in PNG format using media savers or whatever is available.
+
+===Some Technical Details
+
+# Avoid having the need to have the GUI element being captured being visible.
+
+# Allow capture of any GOB or tree of GOBs in any REBOL 3 window.
+
+# Allow also capturing separate screen GOBs, such as popups over windows that exist in a separate window at their correct positions relative to each other.
+
+===Later possibilities
+
+These are for extended options. I don't expect that this is something we want directly inside the R3 GUI.
+
+# When capturing a whole window, create a fake window frame around it
+
+# Annotation of images with speech bubbles, arrows, frames, circles, etc. as an extension of the screenshot.

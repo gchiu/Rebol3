@@ -1,0 +1,9 @@
+Brian Hawley's RLA notes
+
+There were some problems in 6, when combined with 8 and 9. 8 and 9 also violate the "open source" definition, and thus the trademark.
+
+"MEMBERS transfer all rights, including all international copyrights and proprietary rights, to RT under the same terms of this agreement." needs to be more of a license than a transferral, explicitly not taking rights away from the original authors. And 8 and 9 need to refer to the LIBRARY and EXECUTABLE but not the SOURCE.
+
+8 and 9 could be left as-is if the definition of SOFTWARE above had the word SOURCE removed from it.
+
+Note that if 6 is changed to a contribution license, 1 needs to be changed to match.

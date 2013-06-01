@@ -1,0 +1,117 @@
+Tab-box
+
+	Author: Boleslav Brezovsky
+	Date: 9-6-2010
+
+===Introduction
+
+This documents covers resizing/initialisation flow in current R3/GUI.
+
+PM - %panel-make.r3
+PS - %panel-sizing.r3
+PL - %panel-layout.r3
+
+===Simple layout
+
+simple layout is used for testing:
+
+view [button "hello world"]
+
+---Flow
+
++++Initialisation
+
+PM/make-panel...
+  PM/init-panel...
+    PS/make-panel-grid
+    PS/collect-sizes...
+    end
+    PS/total-spacing?
+    PS/resize-panel...
+      PL/layout-panel...
+      end
+    end
+  end
+end
+
++++Resize
+
+Once everything is initialised and we resize the window, we got this chain of operations:
+
+PS/resize-panel...
+  PL/layout-panel...
+  end
+end
+
+===Complex layout
+
+This is more complex layout using two groups:
+
+view [
+	panel [button "Hello world" field]
+	group 2 [text-area scroller scroller]
+]
+
+---Flow
+
++++Initialisation
+
+PM/make-panel...
+  PM/init-panel...
+    PS/make-panel-grid
+    PM/make-panel2...
+      PM/init-panel...
+        PS/make-panel-grid
+        PS/collect-sizes...
+        end
+        PS/total-spacing?
+        PS/resize-panel...
+          PL/layout-panel...
+          end
+        end
+      end
+    end
+    PM/make-panel2...
+      PM/init-panel...
+        PS/make-panel-grid
+        PS/collect-sizes...
+        end
+        PS/total-spacing?
+        PS/resize-panel...
+          PL/layout-panel...
+          end
+        end
+      end
+    end
+    PS/collect-sizes...
+    end
+    PS/total-spacing?
+    PS/resize-panel...
+      PL/layout-panel...
+        PS/resize-panel...
+          PL/layout-panel...
+          end
+        end
+        PS/resize-panel...
+          PL/layout-panel...
+          end
+        end
+      end
+    end
+  end
+end
+
++++Resize
+
+PS/resize-panel...
+  PL/layout-panel...
+    PS/resize-panel...
+      PL/layout-panel...
+      end
+    end
+    PS/resize-panel...
+      PL/layout-panel...
+      end
+    end
+  end
+end

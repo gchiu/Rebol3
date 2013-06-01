@@ -1,0 +1,332 @@
+VID3.4 Style List 
+
+Generated on 17-Feb-2010/22:53:52+1:00 using REBOL 3 version 2.100.97.3.1 
+
+=== window 
+
+Parent: none 
+
+Description: A special style used by system for window panels. 
+
+Options: [] 
+
+=== face 
+
+Parent: none 
+
+Description: A special style used passing pre-built faces. 
+
+Options: [content size] 
+
+=== when 
+
+Parent: none 
+
+Description: A special style for defining panel triggers. 
+
+Options: [triggers] 
+
+=== data 
+
+Parent: when 
+
+Description: A special style for storing data. 
+
+Options: [block] 
+
+=== embed 
+
+Parent: data 
+
+Description: A special style for including data values in SUBMIT. 
+
+Options: [block] 
+
+=== plane 
+
+Parent: none 
+
+Description: A lean sub-panel used as a scroll frame. No internal resizing. 
+
+Options: [size panel] 
+
+=== group 
+
+Parent: none 
+
+Description: For spaced groups. No background or borders. Default horizontal. 
+
+Options: [content columns size] 
+
+=== tight 
+
+Parent: group 
+
+Description: Tightly spaced and packed group. No background or borders. Horizontal default. 
+
+Options: [content columns size] 
+
+=== panel 
+
+Parent: group 
+
+Description: For grouping faces with a background and borders. 
+
+Options: [content columns size area-color] 
+
+=== backdrop 
+
+Parent: panel 
+
+Description: For grouping faces with a background and borders. 
+
+Options: [content columns size area-color] 
+
+=== pad 
+
+Parent: none 
+
+Description: Padding for blank spaces. 
+
+Options: [size] 
+
+=== clicker 
+
+Parent: none 
+
+Description: Single-action button without text. Basis of other styles. 
+
+Options: [size area-color] 
+
+=== button 
+
+Parent: clicker 
+
+Description: Single action button with text. 
+
+Options: [text-body area-color size wide] 
+
+=== toggle 
+
+Parent: button 
+
+Description: Dual action button with text and LED indicator. 
+
+Options: [text-body area-color orig-state size wide] 
+
+=== check 
+
+Parent: toggle 
+
+Description: Dual action button with text and LED indicator. 
+
+Options: [text-body area-color orig-state size wide] 
+
+=== radio 
+
+Parent: check 
+
+Description: Dual action button with text and LED indicator. 
+
+Options: [text-body area-color orig-state size wide] 
+
+=== arrow-button 
+
+Parent: clicker 
+
+Description: Single action button with arrow (but no text). 
+
+Options: [size area-color angle] 
+
+=== box 
+
+Parent: none 
+
+Description: Simple rectangular box. 
+
+Options: [size area-color] 
+
+=== bar 
+
+Parent: box 
+
+Description: Simple horizontal divider bar. 
+
+Options: [size area-color] 
+
+=== div 
+
+Parent: bar 
+
+Description: Simple vertical divider bar. 
+
+Options: [size area-color] 
+
+=== progress 
+
+Parent: none 
+
+Description: Progress bar. 
+
+Options: [bar-color size] 
+
+=== slider 
+
+Parent: none 
+
+Description: Slide-bar for numeric input (0% - 100%) 
+
+Options: [size knob-color] 
+
+=== scroller 
+
+Parent: none 
+
+Description: Scroll bar with end arrows. 
+
+Options: [size] 
+
+=== text 
+
+Parent: none 
+
+Description: Simple text without background. 
+
+Options: [text-body text-color size] 
+
+=== title 
+
+Parent: text 
+
+Description: Title text style without background. 
+
+Options: [text-body text-color size] 
+
+=== head-bar 
+
+Parent: text 
+
+Description: Boxed text bar for headings. 
+
+Options: [text-body area-color size] 
+
+=== label 
+
+Parent: text 
+
+Description: Label text without background. 
+
+Options: [text-body text-color size] 
+
+=== text-area 
+
+Parent: none 
+
+Description: General text input area, editable, scrollable, without background. 
+
+Options: [size text-edit] 
+
+=== text-box 
+
+Parent: text-area 
+
+Description: Text area with background box. 
+
+Options: [size text-edit area-color] 
+
+=== field 
+
+Parent: text-box 
+
+Description: Single line text input, editable, with background box. 
+
+Options: [size text-edit area-color] 
+
+=== area 
+
+Parent: tight 
+
+Description: Multi-line text input, editable, scrollable, with background and scrollbars. 
+
+Options: [text-edit area-color size] 
+
+=== code-area 
+
+Parent: area 
+
+Description: Multi-line code input, editable, scrollable, with background and scrollbars. 
+
+Options: [text-edit area-color size] 
+
+=== info 
+
+Parent: text-area 
+
+Description: Text information fields, non-editable. 
+
+Options: [size text-edit] 
+
+=== info-area 
+
+Parent: tight 
+
+Description: Multi-line text info, non-editable, scrollable, scrollbars. 
+
+Options: [text-edit area-color size] 
+
+=== doc 
+
+Parent: text-area 
+
+Description: A tiny document markup method for embedded docs, notes, messages. 
+
+Options: [text-edit] 
+
+=== sensor 
+
+Parent: none 
+
+Description: Has no graphics, but can be clicked. 
+
+Options: [size] 
+
+=== drawing 
+
+Parent: sensor 
+
+Description: Simple scalar vector draw block. Can be clicked. 
+
+Options: [drawing size] 
+
+=== image 
+
+Parent: sensor 
+
+Description: Simple image with optional border. Can be clicked. 
+
+Options: [src size edge-size] 
+
+=== icon 
+
+Parent: image 
+
+Description: Icon image with optional text below. 
+
+Options: [src size edge-size] 
+
+=== text-list-box 
+
+Parent: box 
+
+Description: List of selectable text lines (no scrollbar). 
+
+Options: [contents area-color] 
+
+=== text-list 
+
+Parent: tight 
+
+Description: List of selectable text lines with scrollbar. 
+
+Options: [list-data] 
+

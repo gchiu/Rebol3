@@ -1,0 +1,75 @@
+Face attaching
+
+	Boleslav Brezovsky
+	
+===Introduction
+
+In R3GUI it's possible to attach one face to another. Attached face can control some aspects of target face
+
+===Usage - styles
+
+---Attached face
+
+Attaching is initialised in *ON-INIT* actor of the attached face. ON-INIT contains typically this lines:
+
+	on-init: [
+		if target: find-face-actor/reverse face 'on-validate [
+			append-face-act face reduce ['validate target]
+			do-style target 'on-attach face
+		]
+	]
+	
+(example from INDICATOR style)
+
+Explanation:
+
+* FIND-FACE-ACTOR/REVERSE will go back thru collection of faces to find nearest face that has ON-VALIDATE actor.	
+
+* When the face is found, new reactor is added to attached face, VALIDATOR in this case, with target face as parameter.
+
+* The target face is then notified that new face is attaching, that's done by calling the ON-ATTACH actor.
+
+Right now, attached face has established its binding to the target face, but we also need to do some maintenance in the target face. That's what we got *ON-ATTACH* actor for.
+
+---Target face
+
++++ON-ATTACH
+
+*ON-ATTACH* actor of the target face is called right from the *ON-INIT* actor of the attached face. Typical *ON-ATTACH* actor looks like this:
+
+	on-attach: [ ; arg: scroller
+		extend-face face 'attached arg
+	]
+
+(example from HGROUP style)
+
+This actor adds attached face to ATTACHED "facet" of target face (it's not facet as it is directly in FACE). It also sets default value for the ATTACHED face but that should probably depend on the attached face type.
+
++++ON-ATTACHED
+
+Sometimes, we need to notify attached faces that they should do their work. For example in text style, when you press a key, if there's scroller, it's size may have changed, the validity of text in style may have changed and has to be checked again, etc. This is done using ON-ATTACHED actor that should be called from inside target face's actors (there's no single point where to do this - not every change requires running attached reactors, so it's on style designer to decide when to do this).
+
+		on-attached: [
+			if faces: select face 'attached [
+				foreach f faces [ 
+					do-face f
+				]
+			 ]
+		]
+
+*ON-ATTACHED* check if there are some attached faces and when yes, it runs their reactors.
+
+However the truth is, that not all required informations can be obtained using automated methods. For example different scrolling method must be used for TEXT styles and PANEL styles. That's the reason why attached face calls actors in target face to do required job. But calling that particular actor requires that attached face has already right value set.
+
+So the problem here is, that we must set this value manually in the on-attached actor as currently there's now known method how to make this abstract. If some universal method can be found, this stuff can be moved out without impact on styles compatibility as the interface will stay same.
+
+Example ON-ATTACHED actor:
+
+
+
+
+---Notes
+
+
+
+===Usage - layout

@@ -1,0 +1,54 @@
+Save state
+
+	Boleslav Brezovsky
+	
+===Introduction
+
+Each style must be able to save and load its state. Faces have to sets of proprieties. One controls visual appearance and second controls functionality(?).
+
+The visual appearance is controlled mostly by values in FACETS and usually can be set directly.
+
+Functional proprieties are typically in STATE and shouldn't be set directly.
+
+However, the boundary here is blurred and depends on each's taste. There cannot be definitive distincion between each group but we can define each group for each style.
+
+---Implementation
+
+It is expected that each save should be able to store all relevant informations using GET-FACE/STATE and be able to reconstruct itself using SET-FACE/STATE. As relevant are considered informations like TEXT-BODY in text styles, caret settings, but not font settings.
+
+===Notes
+
+---FACETS vs. STATE
+
+Values in FACETS control visual appearance mostly. However it's true that values in layout - specified in OPTIONS - are collected into FACETS during initialisation phase (ON-MAKE, ON-INIT). Because the style should exhibit uniform behaviour, it's not desirable to process values collected during layout phase differently from user input that may come later from GUI or API, so ON-INIT should make only basic initialisation of style and values should be processed by standard ON-SET.
+
+This however introduces some problems. Some things are not known during ON-INIT, like size. These values are calculated later, during ON-RESIZE and some code that may be expected to be in ON-SET must be moved to ON-RESIZE. On the other hand, this code is needed to be run not only in resize but also when new values are set with ON-SET, which creates interesting loop of requirements.
+
+There it's good idea to move part of this code into new actor, for example ON-UPDATE-FACE (because ON-UPDATE is taken already - on-update runs before on-resize and cannot be used in our case.) *** check if really true
+
+so we have this three situations (on-update is ignored here):
+
++++DATA from LAYOUT (not sure about on-make)
+
+1. ON-INIT does basic initialisation
+
+2. ON-INIT calls ON-SET (or SET-FACE) to set starting value
+
+3. ON-SET uses value (but not everything can be done here, size is not set etc.)
+
+4. ON-SET finished and returns,
+
+5. ON-INIT finished and returns,
+
+6. ON-UPDATE is called and
+
+7. ON-RESIZE is called by ON-UPDATE and
+
+8. ON-UPDATE-TABLE is called by ON-RESIZE.
+
+9. All actors ends and the code continues.
+
+
+What's important here is that ON-SET somehow cannot call ON-UPDATE-TABLE...
+
+What abput ON-DRAW???

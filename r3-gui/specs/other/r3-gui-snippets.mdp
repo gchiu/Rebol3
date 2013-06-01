@@ -1,0 +1,41 @@
+R3 GUI Tipps & Tricks
+	Author: Robert M. Münch
+	Type: User Documentation
+	Date: 09-Feb-2011
+
+=toc
+
+===Introduction
+This document is a collection of how-tos, tipps & tricks, snippets that helps to get started with R3-GUI. As soon as the concepts and descriptions here get to big, the information is seperated into its own document.
+
+===Actors & Re-Actors
+view [button "test" on-key [do [print mold value]]]
+
+===Triggers
+You can use custom triggers in R3-GUI. Example of custom trigger:
+
+	view [
+		when [my-trigger] do [print "my trigger has been called"]
+		button "run my trigger" do [
+			if win: window-face? face [
+				do-triggers win 'my-trigger
+			]
+		]
+	]
+
+===Showing layouts
+
+---How to do a layout but don't show
+Couple of posibilities:
+#use VIEW/NO-WAIT and later than DO-EVENTS
+#use WHEN with triggers like:
+	view [
+		button
+		...
+		when [enter] do [print "layout has been created"]
+	]
+#use MAKE-FACE like:
+	lay: [button ...]
+	layout: make-face 'window reduce/no-set [content: lay]
+	view layout
+

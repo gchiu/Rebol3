@@ -1,0 +1,119 @@
+R3-GUI Getting Started
+	Author: Robert M. Münch, Saphirion AG
+	Date: 20-Jan-2013/12:27:11+1:00
+	Version: $Id$
+
+=toc
+
+\note
+The docs are work in progress.
+/note
+===Introduction
+R3-GUI is a framework for building GUI applications with Rebol 3.
+
+R3-GUI is inspired by the Rebol 2 GUI framework named VID in terms of ease of use and using a dialect to specify your GUI layout and functionality.
+
+R3-GUI is designed for real-world applications and can be used for code ranging from simple tests up to big commercial applications.
+
+--- Where does R3-GUI fit with respect to the other GUI libs?
+R3-GUI is built on but not backward compatible (anymore) with the old R3-GUI version designed by Carl Sassenrath for Rebol 3 in the past. We continued the development of R3-GUI and extended, optimized and changed it in many ways. This was necessary because the R3-GUI was unfinished when we started to work on it and due to the limitations we hit. We also had to make design decisions allowing us to create enterprise applications with R3-GUI.
+
+--- Available Documentation
+Different aspects of R3-GUI are documented. Some high level stuff but also some very low level stuff. The documentation is still in an early stage. We are working on it.
+
+We provide some older documentation as well. This documentation is based on the state of R3-GUI framework before we started to maintain it and still gives some hindsight. Nevertheless, the outdated examples etc. won't work with the latest version.
+
+We are going to clean-up this situation over time.
+
+--- Getting Ready
+R3-GUI is not part of the R3 interpreter. The R3 interpreter just contains the underlying things like the graphics engine and basic graphic building blocks.
+
+To use R3-GUI you first have to load it. This can be done by downloading R3-GUI to your local directory. Another option is to use Saphirion's latest release and have it downloaded from our web-site. To do this use:
+
+	load-gui
+
+Saphirion's R3 version has the URL to the R3-GUI source code hard-coded into it, so you don't have to care.
+
+\note
+At the moment you can load only one R3-GUI version. We are going to add more fine grained options so that you can load the latest, stable, or a specific version using the load-gui command.
+/note
+
+=== Minimal Example
+The following example creates a window that displays a text and has a button widget to close the window.
+
+	view [
+	    text "Example window."
+	    button "Close" on-action [close-window face]
+	]
+
+Let's walk through the different parts of the code.
+
+	view <layout block>
+
+The VIEW function displays a window with a content that is specified by a so called layout block. The layout block contents are written in R3-GUI language. In the layout block you specify how the GUI should be built and how it should act.
+
+Hence, the layout block is a classical Rebol dialect. In this case it is an optimized domain specific language to describe GUIs.
+
+The next two lines already use two widgets (~faces~ in Rebol world) having some predefined types called ~styles~ in the Rebol world. These are provided and implemented by the R3-GUI code you loaded.
+
+	text <string>
+	button <caption> on-action <action-block>
+
+The TEXT widget obviously shows the text given by the string. And the BUTTON widget looks like a button. So far pretty easy.
+
+The interesting part is how we define an action. Something that should be executed when the user, e.g., clicks on the button widget. This is done by specifying an ON-ACTION attribute of the button widget. For many widget types (styles) R3-GUI knows when the on-action code shall be executed. This was defined by the designer who implemented the widget type. Depending on the widget type ON-ACTION can be executed on different user actions. For the button this happens when the user "presses" the button. For a more complex widget this might be something different.
+
+Let's take a look at the action definition.
+
+	on-action [close-window face]
+
+The CLOSE-WINDOW function is quite easy to understand. It is the function which closes the window containing the given FACE. When the application window is closed, the program terminates.
+
+But what's this FACE word? Where does it come from? The 'on-action' word is actually a name of an R3-GUI ~actor~. By the current convention, R3-GUI actors are implemented as functions and their arguments are fixed and standardized. Actor arguments are:
+
+\table
+face |
+The face upon which the actor acts. ||
+arg |
+A single value or block of multiple values.
+/table
+
+When the actor is called, argument values are passed to the actor body block. Local variables can be defined using set-words (the same way as when using FUNCT).
+
+Thus, R3-GUI uses our button object, looks up the ON-ACTION actor and executes the found code as a function call. And, as for normal functions, the ON-ACTION actor is called with some arguments. In our case the FACE argument refers to our button widget. And since you can access function arguments in the function code, you can of course use the FACE word to access the button object.
+
+These are the words you can use for many widgets.
+
+--- Summary
+You see that it's quite easy to do GUIs with R3-GUI. You need to know a couple of concepts and that's it. Here is a list of things to remember:
+#Use VIEW to transform the R3-GUI dialect into some internal form and display it.
+#The code that should be executed because of an action of the user can be specified as an ON-ACTION action-block. This is a *major* difference to older R3-GUI implementations where a different notation was used.
+#You can access implicit words inside the action-block. One word is FACE which refers to the widget for which the action is executed, the other is ARG referring to the argument (or argument block) passed to the actor.
+
+=== How do things fit together?
+Since R3-GUI is a bit different than normal GUI libraries you might know from the C, Java, etc. world, let's see how things fit together.
+
+You already learned that the Rebol widget types are called styles. These are definitions specifying default values for most attributes of a widget. Something like a class.
+
+Using defined styles you create specific widgets (faces). The FACE is the actual concrete widget on the screen. You can change all values of its attributes. A FACE object offers a lot of information you can inspect.
+
+A group of faces is managed through a ~layout~. Layouts are collections of faces used for specific parts of a user interface. You specify the layout by using special layout words in the layout-block of the VIEW function.
+
+R3-GUI system has been designed to make layouts very easy to create, debug, and maintain. One of the main goals was for simple GUI definitions to be able to create a wide range of simple, predictable layouts, but also to allow more sophisticated and elaborate results to be produced using the same set of basic rules.
+
+Layouts provide a way to:
+
+#Group a number of faces together
+#Arrange faces into a desired layout
+#Display a 2D layer, with background or other effects
+#Update, resize and reposition faces when events occur
+
+=== What to read next?
+To get a good understanding, we suggest that you read things in the following order:
+
+#FACES to understand the basic building blocks and how they look.
+#LAYOUTS to understand how you can build GUIs consisting of many widgets and how these are managed.
+#ACTORS bring life to your GUI. This is where all the interaction comes from.
+#STYLES to understand how new widget types can be defined.
+
+END OF DOCUMENT

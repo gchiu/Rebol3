@@ -1,0 +1,47 @@
+REBOL License Agreement (RLA)
+
+DRAFT Jan 2010
+This document is still in the review and revision stage.
+
+PRELIMNARY
+
+This is the current license agreement for REBOL 3. The intention is to clarify how you can use, publish, and distribute REBOL 3.
+
+It's quite possible, likely in fact, that a better license agreement may be found (perhaps even one from the www.opensource.org, if we can find one that works for us.)
+
+Therefore, we reserve the right to modify this agreement in the future. However, we will keep all prior versions archived, so if you desire, you can refer to a specific version within your code as the license that you used.
+
+Purpose
+
+The purpose of this agreement is to provide open source software modules (SOURCE) for the mutual benefit of the REBOL community (RC), its users (MEMBERS), and REBOL Technologies (RT), and to define the terms and conditions for the use and distribution of this software.
+
+The SOURCE is combined with the REBOL Library (LIBRARY) to construct the REBOL Language program (EXECUTABLE). The term SOFTWARE herein refers to the SOURCE, LIBRARY, and EXECUTABLE separately or in combination.
+
+The SOURCE along with additional source can be combined with the REBOL Library (LIBRARY) to construct an application program (APPLICATION).
+
+We would like to encourage developers to contribute to the SOURCE and to help test and debug the EXECUTABLE, and to create and publish high quality APPLICATION programs.
+
+The term USE herein means to use, copy, modify, extend, compile, develop, build, publish, distribute, bundle, and sell.
+
+Specific Terms
+
+1. The copyrights, ownership rights, and all other proprietary rights (national and international) of the SOURCE, LIBRARY, and EXECUTABLE belong to RT.
+2. RT is the official archive, publisher, and distributor of the SOURCE, LIBRARY, and EXECUTABLE.
+3. MEMBERS and RT can USE the SOURCE and EXECUTABLE free-of-charge for commercial, non-commercial, and educational APPLICATIONS.
+4. MEMBERS can include the LIBRARY as a linker-resolved component of their their APPLICATIONS free-of-charge, except as specifically excluded within the terms of this license.
+5. All titles, copyright and license notices, file names, credits, and disclaimers must remain as-is without modification within the SOFTWARE.
+6. All SOURCE modifications contributed by MEMBERS are free contributions for the benefit of the RC and RT. MEMBERS transfer all rights, including all international copyrights and proprietary rights, to RT under the same terms of this agreement.
+7. This agreement does not require the contribution or publication of modifications. Both MEMBERS and RT are free to develop, use, publish, distribute, and sell proprietary APPLICATIONS for their own benefit, and the SOURCE and EXECUTABLE of such can be kept private.
+8. RT holds the exclusive worldwide rights to publish, distribute, sell, or otherwise license the SOFTWARE as a computer language system or product, and MEMBERS may not do so without a separate license agreement.
+9. To USE the SOFTWARE as one of the primary components of any hardware device is not included in this agreement and requires a separate licensing agreement from RT.
+Warranty and Liability
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Other
+
+This agreement is governed by the laws of California and the USA.
+
+If any provision of this license is invalid or unenforceable under applicable law, it shall not affect the validity or enforceability of the remainder of the terms.

@@ -1,0 +1,57 @@
+R3 GUI / TAB-BOX
+	Author: Boleslav Březovský
+	Type: User Documentation
+	Date: 25-Feb-2011
+
+=toc
+
+TAB-BOX provides tabbed interface similar to that found in web browsers.
+
+Each tab gets its unique id (stored as face's name) so it's possible to have tabs with same name. All GUI elements in tab can be addressed even if tab is not visible (if tab was initialized before).
+
+===Dialect specification
+
+	TAB-BOX tab-specs [block!]
+	
+	tab-specs: some [
+		tab-name [string!]
+		tab-layout [block!]
+	]
+	
+---tab-name [string!]
+
+Tab name that will be displayed in the tab bar. 
+
+---tab-layout [block!]
+
+Layout code to be displayed in tab. TODO: Panel type for layout can be specified (hpanel, vgroup...)
+
+===Style access
+
+---Get values
+
++++VALUE
+
+*word!*
+
+Return active tab.
+
+---Set values
+
++++VALUE
+
+*word!* - tab ID
+
+Set active tab.
+
++++DATA
+
+*block!* - dialect tab-specs
+
+Data of tabs. See dialect specification for details.
+
++++TAB
+
+*block!* - [tab-name opt tab-id tab-layout]
+
+Add new tab or change current if existing ID is specified.
