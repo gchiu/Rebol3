@@ -53,7 +53,7 @@ awake-handler: func [event /local tcp-port ] [
 		]
 		close [
 			print "closed on us!"
-			tcp-port/spec/port-state: 'ready
+			tcp-port/spec/port-state: none
 			true
 		]
 	] [ true]
