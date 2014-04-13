@@ -46,7 +46,7 @@ parse-form: funct [txt][
 		trim/head/tail tagged
 		parse form tagged [
 			"<" any space "input" thru "name" thru "=" thru {"} copy name to {"}
-			(repend/only data copy [name ""])
+			(repend/only data copy [name ""] value: none)
 			thru "value" any space "=" thru {"} copy value to {"} to end
 			(if string? value [
 					append remove back tail last data value
