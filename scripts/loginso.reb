@@ -8,6 +8,17 @@ Rebol [
 	}
 ]
 
+do https://raw.githubusercontent.com/gchiu/Rebol3/master/protocols/prot-http.r3
+
+; <input id="fkey" name="fkey" type="hidden" value="7b20553b65f49a1ab4eba
+; {usr=t=iIb1M83iCESX&s=
+
+if not value? 'url-decode [
+	if not exists? %altwebform.r3 [
+		write %altwebform.r3 read http://reb4.me/r3/altwebform.r
+	]
+	do %altwebform.r3
+]
 
 if not value? 'to-text [
 	if not exists? %r3-gui.r3 [
@@ -24,7 +35,7 @@ remove-quotes: func [txt [string!]][
 	remove head remove back tail txt
 ]
 
-; returns a bunch of pairs
+; returns a bunch of pairs from a form
 parse-form: funct [txt][
 	data: copy []
 	alpha: complement charset space
@@ -115,16 +126,74 @@ view [
 				area (pick forms 2)
 				button "Extract Form Data" on-action [
 					if forms/2 [
-						data: parse-form pick forms 2
+						formdata: parse-form pick forms 2
+
 						close-window face
 						view/modal compose/deep [
-							text-table 200x200 ["Name" #1 250 "Value" #2 200] [(data)]
+							text-table 200x200 ["Name" #1 250 "Value" #2 200] [(formdata)]
+							vgroup [
+								hgroup [label "Email: " emailfld: field ""]
+								hgroup [label "Password: " passwordfld: field ""]
+								button "Submit" on-action [
+									postdata: copy []
+									foreach f next [(formdata)] [
+										append postdata to-word f/1
+										case [
+											f/1 = "email" [append postdata get-face emailfld]
+											f/1 = "password" [append postdata get-face passwordfld]
+											true [append postdata f/2]
+										]
+									]
+									postdata: to-webform postdata
+
+									if error? err: try [
+										write to-url get-face sitefld postdata
+									][
+
+										;?? err
+										info: err/arg2
+										; print ["Redirecting to: " info/headers/location]
+										cookies: info/headers/set-cookie
+										cookiejar: copy ""
+										foreach cookie cookies [
+											append cookiejar join cookie ";"
+										]
+
+										; ?? cookiejar
+										
+
+										page: to string! write http://chat.stackoverflow.com/rooms/291/rebol-and-red compose/deep [
+											GET [Cookie: (cookiejar)]
+										]
+
+										comment { ; this doesn't work inside the script but works fine outside
+page: find/last page "fkey"
+
+										either parse page [thru {fkey"} any space thru "type" thru {value="} copy fkey to {"} to end][
+
+										][fkey: copy ""]
+}
+										;; work round for the parse rule failing inside here
+										page: find/last page "fkey"
+										page: find/tail page {value="}
+										fkey: copy/part page find page {"}
+										view/modal reduce [
+											'vgroup [
+												'label "Cookies"
+												'area cookiejar
+												'hgroup [
+													'label "Fkey" fkeyfld: 'field fkey
+												]
+											]
+										]
+									]
+								]
+							]
 						]
 					]
 				]
 			]
 		]
-
 
 		button "Form 3" on-action [
 			view/modal compose [
