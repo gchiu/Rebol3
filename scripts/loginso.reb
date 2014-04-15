@@ -1,17 +1,14 @@
 Rebol [
 	file: %loginso.reb
 	author: "Graham Chiu"
-	date: 12-April-2014
-	version: 0.0.1
+	date: 15-April-2014
+	version: 0.0.2
 	notes: {
 		parse rule will crash at times
 	}
 ]
 
 do https://raw.githubusercontent.com/gchiu/Rebol3/master/protocols/prot-http.r3
-
-; <input id="fkey" name="fkey" type="hidden" value="7b20553b65f49a1ab4eba
-; {usr=t=iIb1M83iCESX&s=
 
 if not value? 'url-decode [
 	if not exists? %altwebform.r3 [
