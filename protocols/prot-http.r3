@@ -11,17 +11,27 @@ REBOL [
 	}
 	Name: 'http
 	Type: 'module
-	Version: 0.1.41
-	File: %prot-http.r
+	Version: 0.1.43
+	File: %prot-http.r3
 	Purpose: {
 		This program defines the HTTP protocol scheme for REBOL 3.
 	}
-	Author: ["Gabriele Santilli" "Richard Smolak"]
+	Author: ["Gabriele Santilli" "Richard Smolak" "Graham Chiu"]
 	notes: {modified to return an error object with the info object when manual redirect required - Graham}
-	Date: 15-April-2014
+	Date: 19-April-2014
 ]
 
-sync-op: func [port body /local state] [
+digit: charset [ #"0" - #"9" ]
+alpha: charset [ #"a" - #"z" #"A" - #"Z" ]
+idate-to-date: func [ date [string!] /local day month year time zone]
+[
+	either parse date [ 5 skip copy day 2 digit space copy month 3 alpha space copy year 4 digit space copy time to space space copy zone to end ][
+		if zone = "GMT" [ zone: copy "+0" ]
+		to date! ajoin [ day "-" month "-" year "/" time zone ]
+	][ none ]
+]
+
+sync-op: func [port body /local state ] [
 	unless port/state [open port port/state/close?: yes]
 	state: port/state
 	state/awake: :read-sync-awake
@@ -36,7 +46,11 @@ sync-op: func [port body /local state] [
 	]
 	body: copy port
 	if state/close? [close port]
-	body
+	either port/spec/debug [
+		state/connection/locals
+	][
+		body
+	]
 ]
 read-sync-awake: func [event [event!] /local error] [
 	switch/default event/type [
@@ -186,9 +200,11 @@ do-request: func [
 	make-http-request spec/method to file! any [spec/path %/]
 	spec/headers spec/content
 ]
-parse-write-dialect: func [port block /local spec] [
+parse-write-dialect: func [port block /local spec debug] [
 	spec: port/spec
-	parse block [[set block word! (spec/method: block) | (spec/method: 'post)]
+	parse block [
+		opt [ 'headers ( spec/debug: true ) ] 
+		[set block word! (spec/method: block) | (spec/method: 'post)]
 		opt [set block [file! | url!] (spec/path: block)] [set block block! (spec/headers: block) | (spec/headers: [])] [set block [any-string! | binary!] (spec/content: block) | (spec/content: none)]
 	]
 ]
@@ -209,7 +225,7 @@ check-response: func [port /local conn res headers d1 d2 line info state awake s
 		info/headers: headers: construct/with d1 http-response-headers
 		info/name: to file! any [spec/path %/]
 		if headers/content-length [info/size: headers/content-length: to integer! headers/content-length]
-		if headers/last-modified [info/date: attempt [to date! headers/last-modified]]
+		if headers/last-modified [info/date: attempt [idate-to-date headers/last-modified]]
 		remove/part conn/data d2
 		state/state: 'reading-data
 	]
@@ -248,6 +264,9 @@ check-response: func [port /local conn res headers d1 d2 line info state awake s
 			]
 			| (info/response-parsed: 'version-not-supported)
 		]
+	]
+	if all [logic? spec/debug true? spec/debug]  [
+		spec/debug: info
 	]
 	switch/all info/response-parsed [
 		ok [
@@ -461,6 +480,7 @@ sys/make-scheme [
 		headers: []
 		content: none
 		timeout: 15
+		debug: none
 	]
 	info: make system/standard/file-info [
 		response-line:
