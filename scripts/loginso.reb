@@ -1,10 +1,20 @@
 Rebol [
 	file: %loginso.reb
 	author: "Graham Chiu"
-	date: 15-April-2014
-	version: 0.0.2
+	date: 20-April-2014
+	version: 0.0.3
 	notes: {
+		1. Click on the "Fetch" button which grabs the web page and displays it in the area face.
+		2. Cick on the "Count Forms" button which parses the page to see how many web forms are embedded.
+		3. For Stackoverflow, click on "Form 2" button
+		4. Click on "Extract Form Data" to extract the field names and data for that form
+		5. Click on the empty cells and edit them using the keyboard "e"
+		6. Click on the "Submit Form" button to get the cookies and Fkey for Stackoverflow
+
 		parse rule will crash at times
+	}
+	history: {
+		20-Apr-2014 allow editing of text table to enter form data ( click on the field, and enter "e" from keyboard to edit a field )
 	}
 ]
 
@@ -127,27 +137,19 @@ view [
 
 						close-window face
 						view/modal compose/deep [
-							text-table 200x200 ["Name" #1 250 "Value" #2 200] [(formdata)]
+							t: text-table 200x200 ["Name" #1 250 "Value" #2 200] [(formdata)]
 							vgroup [
-								hgroup [label "Email: " emailfld: field ""]
-								hgroup [label "Password: " passwordfld: field ""]
-								button "Submit" on-action [
+								button "Submit Form" on-action [
 									postdata: copy []
-									foreach f next [(formdata)] [
-										append postdata to-word f/1
-										case [
-											f/1 = "email" [append postdata get-face emailfld]
-											f/1 = "password" [append postdata get-face passwordfld]
-											true [append postdata f/2]
-										]
+									foreach f next data [
+										repend postdata [to-word f/1 f/2]
 									]
 									postdata: to-webform postdata
-
 									if error? err: try [
-										write to-url get-face sitefld postdata
+										; submit the form with the entered data
+										page: write to-url get-face sitefld postdata
+										print to-string page
 									][
-
-										;?? err
 										info: err/arg2
 										; print ["Redirecting to: " info/headers/location]
 										cookies: info/headers/set-cookie
@@ -155,14 +157,9 @@ view [
 										foreach cookie cookies [
 											append cookiejar join cookie ";"
 										]
-
-										; ?? cookiejar
-										
-
 										page: to string! write http://chat.stackoverflow.com/rooms/291/rebol-and-red compose/deep [
 											GET [Cookie: (cookiejar)]
 										]
-
 										comment { ; this doesn't work inside the script but works fine outside
 page: find/last page "fkey"
 
