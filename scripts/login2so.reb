@@ -8,7 +8,7 @@ Rebol [
 	}
 ]
 
-sx- email: stackexchange-email@somewhere.com  ; email!
+sx-email: stackexchange-email@somewhere.com  ; email!
 sx-password: "-- password ---" ; string!
 chat-page: http://chat.stackoverflow.com/rooms/291/rebol-and-red ; url!
 
@@ -55,3 +55,4 @@ login2so: func [email [email!] password [string!] chat-page [url!]
 result: login2so sx-email sx-password chat-page
 
 ?? result
+halt
