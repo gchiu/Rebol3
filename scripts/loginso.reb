@@ -1,8 +1,8 @@
 Rebol [
 	file: %loginso.reb
 	author: "Graham Chiu"
-	date: 20-April-2014
-	version: 0.0.3
+	date: 21-April-2014
+	version: 0.0.4
 	notes: {
 		1. Click on the "Fetch" button which grabs the web page and displays it in the area face.
 		2. Cick on the "Count Forms" button which parses the page to see how many web forms are embedded.
@@ -141,7 +141,7 @@ view [
 							vgroup [
 								button "Submit Form" on-action [
 									postdata: copy []
-									foreach f next data [
+									foreach f next get-face/field t 'data [
 										repend postdata [to-word f/1 f/2]
 									]
 									postdata: to-webform postdata
