@@ -11,14 +11,14 @@ REBOL [
 	}
 	Name: 'http
 	Type: 'module
-	Version: 0.1.43
+	Version: 0.1.44
 	File: %prot-http.r3
 	Purpose: {
 		This program defines the HTTP protocol scheme for REBOL 3.
 	}
 	Author: ["Gabriele Santilli" "Richard Smolak" "Graham Chiu"]
 	notes: {modified to return an error object with the info object when manual redirect required - Graham}
-	Date: 19-April-2014
+	Date: 27-April-2014
 ]
 
 digit: charset [ #"0" - #"9" ]
@@ -127,22 +127,33 @@ make-http-error: func [
 	"Make an error for the HTTP protocol"
 	message [string! block!]
 	/inf obj
+	/otherhost new-url [url!]
 ] [
 	if block? message [message: ajoin message]
-	either inf [
-	make error! [
-		type: 'Access
-		id: 'Protocol
-		arg1: message
-		arg2: obj
-	]
-	][
-	make error! [
-		type: 'Access
-		id: 'Protocol
-		arg1: message
-	]
-	
+	case [
+		inf [
+			make error! [
+				type: 'Access
+				id: 'Protocol
+				arg1: message
+				arg2: obj
+			]
+		]
+		otherhost [
+			make error! [
+				type: 'Access
+				id: 'Protocol
+				arg1: message
+				arg3: new-url
+			]
+		]
+		true [
+			make error! [
+				type: 'Access
+				id: 'Protocol
+				arg1: message
+			]
+		]
 	]
 ]
 http-error: func [
@@ -395,7 +406,7 @@ do-redirect: func [port [port!] new-uri [url! string! file!] /local spec state] 
 		do-request port
 		false
 	] [
-		state/error: make-http-error "Redirect to other host - requires custom handling"
+		state/error: make-http-error/otherhost "Redirect to other host - requires custom handling" rejoin [new-uri/scheme "://" new-uri/host new-uri/path]
 		state/awake make event! [type: 'error port: port]
 	]
 ]
