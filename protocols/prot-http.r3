@@ -11,7 +11,7 @@ REBOL [
 	}
 	Name: 'http
 	Type: 'module
-	Version: 0.1.44
+	Version: 0.1.45
 	File: %prot-http.r3
 	Purpose: {
 		This program defines the HTTP protocol scheme for REBOL 3.
@@ -406,7 +406,7 @@ do-redirect: func [port [port!] new-uri [url! string! file!] /local spec state] 
 		do-request port
 		false
 	] [
-		state/error: make-http-error/otherhost "Redirect to other host - requires custom handling" rejoin [new-uri/scheme "://" new-uri/host new-uri/path]
+		state/error: make-http-error/otherhost "Redirect to other host - requires custom handling" to-url rejoin [new-uri/scheme "://" new-uri/host new-uri/path]
 		state/awake make event! [type: 'error port: port]
 	]
 ]
