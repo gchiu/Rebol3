@@ -5,9 +5,11 @@ Rebol [
 	Date: 2-Jun-2014
 	Author: "Graham Chiu"
 	Purpose: {create a reference in markdown format suited for use by skeptics.stackexchange.com}
-	version: 0.0.3
+	version: 0.0.5
 	notes: {
 		14-Jun-2014 rewritten as CGI,and using Brian's combine function
+		JS from http://steamdev.com/zclip/
+		Combine documentation http://blog.hostilefork.com/combine-alternative-rebol-red-rejoin/
 	
 		Sample output
 		Biesiekierski JR, Peters SL, Newnham ED, Rosella O, Muir JG, Gibson PR. [No effects of gluten in patients with self-reported non-celiac gluten sensitivity after dietary reduction of fermentable, poorly absorbed, short-chain carbohydrates.](http://www.ncbi.nlm.nih.gov/pubmed/23648697) Gastroenterology 2013 Aug;145(2):320-8.e1-3. doi: 10.1053/j.gastro.2013.04.051. PubMed PMID: 23648697.
@@ -16,10 +18,10 @@ Rebol [
 
 
 altxml: http://reb4.me/r3/altxml
-;altxml: %/var/www/bot-site/html/assets/altxml.reb
-;if not exists? altxml [
-;	write altxml read http://reb4.me/r3/altxml
-;]
+altxml: %/var/www/bot-site/html/assets/altxml.reb
+if not exists? altxml [
+	write altxml read http://reb4.me/r3/altxml
+]
 do altxml
 
 digits: charset [ #"0" - #"9" ]
@@ -119,7 +121,7 @@ pubmed: http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&retmo
 
 create-reference: func [id
 	/limit cnt 
-	/local result reference ref reb eloc month day
+	/local result reference ref reb eloc month day authors
 ][
 	reference: make object! [
 		title:
@@ -140,23 +142,33 @@ create-reference: func [id
 
 	; get the authors
 	ref: reference/authors: copy ""
-	counter: 0
-	append ref form collect [
+
+	authors: collect [
 		foreach author reb/path [* <AuthorList> <Author>][
-			++ counter
-			keep join "" [
+			keep combine [
 				author/path [<Author> <LastName> ?]
 				" "
 				author/path [<Author> <Initials> ?]
-				","
 			]
-			if all [limit counter >= cnt][ keep " et al " break]
 		]
 	]
-	take/last ref
-	append ref "."
+
+	; remove blank authors
+	authors: exclude authors [ " " ]
+
+	if all [ limit cnt + 1 < length? authors][
+		authors: collect [
+			keep copy/part authors cnt
+			keep "[..]"
+			keep take/last authors
+		]
+	]
+
+	append ref combine/with authors [ "," space]
 
 	reference/journal: reb/path [* <ISOAbbreviation> ?]
+
+	replace/all reference/journal "." ""
 
 	if #"." <> last trim first reference/journal [ 
 		append reference/journal "."
@@ -171,7 +183,7 @@ create-reference: func [id
 	either find result "doi" [
 		doi: true
 		index: index? find result "doi"
-		 result: reb/path compose [ * <ArticleIDList> <ArticleID> (index)  ? ]
+		result: reb/path compose [ * <ArticleIDList> <ArticleID> (index)  ? ]
 	][
 		doi: false ; return "Can't find doi"
 	]
@@ -262,7 +274,7 @@ create-reference: func [id
 
 	return combine [
 		reference/authors
-		" [" reference/title "](" reference/url ") " reference/journal " " reference/publication "."
+		". [" reference/title "](" reference/url ") " reference/journal " " reference/publication "."
 	]
 ]
 
