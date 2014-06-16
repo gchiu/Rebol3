@@ -1,0 +1,220 @@
+/* network\net\SrvSockTDB.nrx                 
+
+   Server TCP program, accepts a request from a TCP client using a Thread:
+   Usage: Java SrvSockTDB <portnumber> <DB-URL> <userprefix>  */
+
+import java.sql.
+import java.util.Date -- have to do this as we have two date classes, one in util and one in sql
+
+usage = 'Usage: java SrvSockTDB <portnumber> <DB-URL> <userprefix> '
+-- db-url like this 'jdbc:firebirdsql:localhost/3050:c:\\database\\employee.gdb'
+   
+parse arg port rest                             -- capture + test argument
+if \port.datatype('W') then	do					-- check for a whole number
+	say 'No port specified.'
+    say usage
+    exit 8
+  end
+
+-- got the port, now get the url
+
+parse rest url userprefix
+
+if url = '' then do
+		say 'No URL specified'
+		say  usage
+		exit 8
+	end
+else do                                -- check for correct URL
+     parse url p1 ':' p2 ':' userprefix
+     if p1 \= 'jdbc' | p2 \= 'firebirdsql' | userprefix = '' then do
+		say 'Can not parse url'
+        say usage
+        exit 8
+     end
+end
+  
+-- got this part 'jdbc:firebirdsql:localhost/3050:c:\\database\\employee.gdb', so now get userid and password
+  
+if userprefix \= '' then
+	parse userprefix db userid password
+if userid = '' then
+	userid = 'SYSDBA'
+if password = '' then
+	password = 'masterke'
+	
+say 'Protocol: 'p1
+say 'Driver/DB: 'p2
+say 'UserPrefix: 'userprefix
+say 'DB: 'db
+
+url = p1 || ':' || p2 || ':' || db
+say 'URL: ' url
+say 'Userid: 'userid
+say 'Password: 'password
+
+select
+	when p2 == 'firebirdsql' then driver = 'org.firebirdsql.jdbc.FBDriver'
+	when p2 == 'db2' then driver = 'com.ibm.db2.jcc.DB2Driver'
+	when p2 == 'mysql' then driver = 'com.mysql.jdbc.Driver'
+	when p2 == 'jtds' then driver = 'net.sourceforge.jtds.jdbc.Driver'
+	when p2 == 'microsoft' then driver = 'com.microsoft.sqlserver.jdbc.SQLServerDriver'
+	when p2 == 'sybase' then driver = 'com.sybase.jdbc2.jdbc.SybDriver'
+	when p2 == 'postgresql' then driver = 'org.postgresql.Driver'
+	otherwise 
+		do 
+			say 'unrecognised DB driver' p2
+			exit 1
+		end
+	end
+
+
+do                                     -- loading DB Driver support
+  say 'Loading' p2 'driver classes...'
+  Class.forName(driver).newInstance()
+ catch e1 = Exception
+  say 'The' p2 'driver classes could not be found and loaded !'
+  say 'Exception (' e1 ') caught : \n' e1.getMessage()
+  exit 1
+end                                    -- end : loading DB Driver support
+
+do                                     -- connecting to DB host
+  say 'Connecting to:' url
+  jdbcCon = Connection DriverManager.getConnection(url, userid, password)
+catch e2 = SQLException
+  say 'SQLException(s) caught while connecting !'
+  loop while (e2 \= null)
+     say 'SQLState:' e2.getSQLState()
+     say 'Message: ' e2.getMessage()
+     say 'Vendor:  ' e2.getErrorCode()
+     say
+     e2 = e2.getNextException()
+   end
+   exit 1
+end   
+
+do                                           -- main program loop
+  serverS = ServerSocket(port)               -- register at port: server socket
+  say 'Server:' serverS
+  loop forever
+    serviceS = serverS.accept()              -- listen/accept client: service socket
+    st = ServerThread(serviceS, jdbcCon)              -- create a Thread (constructor)
+    Thread(st).start()                       -- start the Thread
+  end                                        -- end loop forever
+catch e=IOException
+  say 'IOException caught:' e.getMessage()   -- error messaging
+end
+
+/*-------------------------- class ServerThread -----------------------*/
+class ServerThread implements Runnable
+  Properties inheritable
+    serviceS = java.net.Socket
+	jdbcCon = Connection					-- DB connection
+	
+  method ServerThread(s = java.net.Socket, j = Connection)   -- constructor
+    serviceS = s
+	jdbcCon = j
+
+  -- called by the thread
+  method getRequest() returns Rexx           -- analyze request string
+    line = Rexx
+    socketInputStream    = serviceS.getInputStream()
+    socketBufferedReader = BufferedReader(InputStreamReader(socketInputStream))
+
+    line = socketBufferedReader.readline()
+                                             -- skip the rest of the input .. only want the first line
+    socketBufferedReader.skip(socketInputStream.available())
+
+    say 'SQL requested:' line            
+    return line
+
+  method run()                               -- run the Thread
+  do
+    say serviceS '\n  connected at:' Date()
+    ptrW = PrintWriter(OutputStreamWriter(serviceS.getOutputStream()))
+    query = getRequest()                      -- read the SQL request of the client
+    do                                       -- execute the SQL
+		say 'Creating query...'
+		-- query = 'SELECT * from staff'
+		stmt = Statement jdbcCon.createStatement()
+		say 'Executing query:' 
+		loop i=0 to (query.length()-1)%75
+			say '   ' query.substr(i*75+1,75)  
+		end
+		rs = ResultSet stmt.executeQuery(query)
+		nbr_columns = rs.getMetaData().getColumnCount()
+		say 'Query has ' nbr_columns 'columns'
+		columnTypes=0
+		loop i=1 to nbr_columns 
+			say 'Column Name: 'i rs.getMetadata().getColumnName(int i)
+			say 'Column Type: ' rs.getMetadata().getColumnTypeName(int i)
+			columnTypes[i]=rs.getMetadata().getColumnTypeName(int i)			
+		end
+		say 'Results:'
+		buffer = ''
+		loop row=0 while rs.next()
+			-- at start of a row, so start a rebol block
+			buffer = buffer || "["
+			loop col=1 to nbr_columns 
+				--say 'Column' col
+				--say 'ColumnType' columnTypes[col]
+				text = rs.getString(int col)
+				if rs.wasNull() then do
+						--say 'Null value'
+						buffer = buffer "#[none]"
+					end
+				else
+					do
+					-- string, numeric, or binary ... ( ignore binary for the moment )
+					-- strings are double quoted, numbers are single quoted
+						--say text
+						ct = columnTypes[col]
+						select 
+							when ct == 'INTEGER', ct == 'DECIMAL', ct == 'FLOAT', ct == 'DATE' 
+								then buffer = buffer text 
+							when  ct == 'TIMESTAMP'  
+								then do
+									st = Rexx text
+									st = st.changestr(' ','/')
+									buffer = buffer st
+								end
+							when  ct == 'VARCHAR', ct == 'BLOB SUB_TYPE 1' then  
+								do
+									-- convert to Rexx string
+									st = Rexx text
+									st = st.changestr('\n','^/')
+									st = st.changestr('\r','^/')
+									buffer = buffer '{' || st || '}'
+									say st
+								end
+							otherwise buffer = buffer '{' || text || '}'
+							end
+					end
+			end			
+			buffer = buffer || "]"
+			
+		end
+		rs.close()                           -- close the ResultSet
+		stmt.close()                         -- close the Statement
+		-- jdbcCon.close()                      -- don't close the Jdbc Connection so we can reuse it
+		say 'Retrieved' row 'rows'
+		if row <= 1 then
+			buffer = "[" || buffer || "]" 
+		ptrW.printLn(buffer)					-- return the result to the client
+	catch e3 = SQLException
+		say 'SQLException(s) caught !'
+		loop while (e3 \= null)
+			say 'SQLState:' e3.getSQLState()
+			say 'Message: ' e3.getMessage()
+			say 'Vendor:  ' e3.getErrorCode()
+			say
+			e3 = e3.getNextException()
+		end
+	end                                    -- end: sql query
+    ptrW.close()                             -- close file and socket
+    serviceS.close()						 -- terminate thread
+	say 'thread terminated'
+  catch e=IOException
+    say 'IOException caught in ServerThread.run():' e.getMessage()
+  end
+-- end SrvSockTDB

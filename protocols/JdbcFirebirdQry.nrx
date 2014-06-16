@@ -1,0 +1,87 @@
+/* jdbc\JdbcFirebirdQry.nrx
+
+   This NetRexx program demonstrate Firebird query using the JDBC API.
+   Usage: Java JdbcFirebirdQry [<DB-URL>] [<userprefix>] 
+   Modified from the JdbcQry example from the red book - Graham Chiu 2010/06/27
+
+*/
+
+import java.sql.
+
+parse arg url prefix                   -- process arguments
+if url = '' then
+   url = 'jdbc:firebirdsql:localhost/3050:c:\\database\\employee.gdb' -- default db
+else do                                -- check for correct URL
+     parse url p1 ':' p2 ':' rest
+     if p1 \= 'jdbc' | p2 \= 'firebirdsql' | rest = '' then do
+        say 'Usage: java JdbcQry [<DB-URL>] [<userprefix>]'
+        exit 8
+     end
+end
+
+if prefix \= '' then
+	parse prefix userid password
+
+if userid = '' then
+	userid = 'SYSDBA'
+if password = '' then
+	password = 'masterke'
+	
+say url
+say p1
+say p2
+say rest
+say 'Userid: 'userid
+say 'Password: 'password
+
+do                                     -- loading Firebird support
+  say 'Loading Firebird driver classes...'
+  Class.forName('org.firebirdsql.jdbc.FBDriver').newInstance()
+ catch e1 = Exception
+  say 'The Firebird driver classes could not be found and loaded !'
+  say 'Exception (' e1 ') caught : \n' e1.getMessage()
+  exit 1
+end                                    -- end : loading Firebird support
+
+do                                     -- connecting to Firebird host
+  say 'Connecting to:' url
+  jdbcCon = Connection DriverManager.getConnection(url, userid, password)
+catch e2 = SQLException
+  say 'SQLException(s) caught while connecting !'
+  loop while (e2 \= null)
+     say 'SQLState:' e2.getSQLState()
+     say 'Message: ' e2.getMessage()
+     say 'Vendor:  ' e2.getErrorCode()
+     say
+     e2 = e2.getNextException()
+   end
+   exit 1
+end                                    -- end : connecting to Firebird host
+
+do                                     -- do the query
+  say 'Creating query...'
+  query = 'SELECT * from staff'
+  stmt = Statement jdbcCon.createStatement()
+  say 'Executing query:' 
+  loop i=0 to (query.length()-1)%75
+     say '   ' query.substr(i*75+1,75)  
+  end
+  rs = ResultSet stmt.executeQuery(query)
+  say 'Results:'
+  loop row=0 while rs.next()
+     say rs.getString('staffname') rs.getString('pwd') 
+  end
+  rs.close()                           -- close the ResultSet
+  stmt.close()                         -- close the Statement
+  jdbcCon.close()                      -- close the Connection
+  say 'Retrieved' row 'staff'
+catch e3 = SQLException
+  say 'SQLException(s) caught !'
+  loop while (e3 \= null)
+     say 'SQLState:' e3.getSQLState()
+     say 'Message: ' e3.getMessage()
+     say 'Vendor:  ' e3.getErrorCode()
+     say
+     e3 = e3.getNextException()
+   end
+end                                    -- end: get staff members
