@@ -6,6 +6,7 @@ Rebol [
 	rights: 'bsd
 	date: 12-July-2014
 	notes: {needs rebol3 with https. prints WxC's data usage page to the browser}
+	version: 0.0.2
 ]
 
 ;; need to make these your own
@@ -145,14 +146,14 @@ session-cookie: reform [ cookies fixed-cookie ]
 broadband-data: to string! write rejoin [ redirect "/services/internet/broadband/" user "/" ] compose/deep [ GET [ cookie: (session-cookie) "/" ]]
 
 ; turn all relative urls into absolute
-foreach [original final ] [
-	{source="/} {src="https://www.xport.co.nz/}
+foreach [original final] [
+	{src="/} {src="https://www.xport.co.nz/}
 	{href="/} {href="https://www.xport.co.nz/}
 ][
 	replace/all broadband-data original final
 ]
 
-prin [ "Content-type: text/html" crlf crlf ]
+prin ["Content-type: text/html" crlf crlf]
 print broadband-data
 
 ; for local testing, uncomment these next two lines
