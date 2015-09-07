@@ -4,7 +4,7 @@ Rebol [
     author: "Graham Chiu"
     date: 6-Sep-2015
     purpose: {grab the flick electric power charges for a particular day}
-    version: 0.0.2
+    version: 0.0.3
     notes: {dialected usage example is at the end of this file}
 ]
 
@@ -23,6 +23,7 @@ resources: [
     %prot-http.reb https://raw.githubusercontent.com/gchiu/Rebol3/master/protocols/prot-http.r3
     %combine.reb https://raw.githubusercontent.com/hostilefork/rebol-proposals/master/combine.reb
     %altjson.reb http://reb4.me/r3/altjson
+    %altwebform.reb http://reb4.me/r3/altwebform
 ]
 
 ; one time download files we need
@@ -31,46 +32,17 @@ foreach [script location] resources [
     do script
 ]
 
-percent-encode: func [char [char!]] [
-    char: enbase/base to-binary char 16
-    parse char [
-        copy char some [char: 2 skip (insert char "%") skip]
-    ]
-    char
-]
+; create a shortcut to user context
+u: self 
 
-url-encode: use [ch mk] [
-    ch: charset ["_-." #"0" - #"9" #"A" - #"Z" #"-" #"a" - #"z" #"~"]
-    func [text [any-string!]] [
-        either parse/all text: form text [
-            any [
-                some ch | end | change " " "+" |
-                mk: (mk: percent-encode mk/1)
-                change skip mk
-            ]
-        ] [to-string text] [""]
-    ]
-]
-
-to-webform: function [ pairs [block!]
-    {web encodes a block of pair values}
-][
-    data: collect [
-        foreach [var val] pairs [
-            keep combine [url-encode var "=" url-encode val]
-        ]
-    ]
-    combine/with data "&"
-]
-
-format-date: func [ date [date!]
-    {formats date as yyyy-mm-dd}
+format-date: func [ {formats date as yyyy-mm-dd}
+	date [date!]
 ][
     combine/with [ date/year next form 100 + date/month next form 100 + date/day ] "-"
 ]
 
-extract-named-cookie: function [ set-cookie [string!] cookie [string!]
-    {extracts named cookie from cookie string as a block}
+extract-named-cookie: function [ {extracts named cookie from cookie string as a block}
+	set-cookie [string!] cookie [string!]
 ][
     cookies: split set-cookie space
     cookie-jar: collect [
@@ -83,8 +55,8 @@ extract-named-cookie: function [ set-cookie [string!] cookie [string!]
     ]
 ]
 
-grab-json: function [ html [string!]
-    {extract json array from flick page}
+grab-json: function [ {extract json array from flick page}
+	html [string!]
 ][
     parse html [some [ to "<script" copy segment to "/script" thru ">" (
         if find segment "#day-chart" [
@@ -96,8 +68,8 @@ grab-json: function [ html [string!]
     none
 ]
 
-get-day-data: function [ d [string! date!] flick-daily [url!] cookie-jar [block!]
-    {return json data for a particular day}
+get-day-data: function [ {return json data for a particular day}
+	d [string! date!] flick-daily [url!] cookie-jar [block!]
 ][
     if string? d [ d: load d]
     either error? set/any 'err try [
@@ -113,14 +85,13 @@ get-day-data: function [ d [string! date!] flick-daily [url!] cookie-jar [block!
     ]
 ]
 
-grab-flick-session-cookie: function [ flick-signin [url!] flick-session-cookie-name [string!]
-    {grab the initial cookies, and return only the session cookie}
+grab-flick-session-cookie: function [ {grab the initial cookies, and return only the session cookie}
+    flick-signin [url!] flick-session-cookie-name [string!]
 ][
     if error? set/any 'err try [ 
         port: write flick-signin [ headers GET [] ]
-        unless parse to string! port/data [ thru {name="authenticity_token"} thru {value="} copy token to {"} (
-            set 'authenticity_token token)
-            to end
+        unless parse to string! port/data [ 
+        	thru {name="authenticity_token"} thru {value="} copy token to {"} (set 'authenticity_token token) to end 
         ][
             print "unable to get authenticity token"
             return none
@@ -140,8 +111,8 @@ grab-flick-session-cookie: function [ flick-signin [url!] flick-session-cookie-n
     ]
 ]
 
-login-to-site: function [ flick-signin [url!] cookie-jar [block!] data [string!] flick-session-cookie-name [string!]
-    {login to site and return a block containing redirect and cookie-jar}
+login-to-site: function [ {login to site and return a block containing redirect and cookie-jar}
+    flick-signin [url!] cookie-jar [block!] data [string!] flick-session-cookie-name [string!]
 ][
     either error? set/any 'err2 try [
         page: write flick-signin compose/deep [ 
@@ -173,16 +144,24 @@ login-to-site: function [ flick-signin [url!] cookie-jar [block!] data [string!]
 ]
 
 
-flick-parser: function [ commands [block!]
-    {processes a block of flick dialect commands}
+flick-parser: function [ {processes a block of flick dialect commands}
+    commands [block!]
 ][
     flick-rule: [
         some [
             'login set user email! set pass string! (
                 cookie-jar: grab-flick-session-cookie flick-signin flick-session-cookie-name
-                webdata: to-webform reduce ["authenticity_token" authenticity_token "user[email]" user "user[password]" pass "user[remember_me]" "0" "commit" "Log in"] 
-                insert head webdata "utf8=%E2%9C%93&"
-                
+                token: u/authenticity_token
+                webdata: to-webform/ruby-style [
+                	utf8: "^(2713)"
+					authenticity_token: :token
+					user: [
+						email: :user
+						password: :pass
+						remember_me: 0
+					]
+					commit: "Log in"
+				]	
                 if none? data: login-to-site flick-signin cookie-jar webdata flick-session-cookie-name [
                     throw "Unable to login - check userid and passsword.  Run aborted"
                 ]
@@ -255,8 +234,8 @@ flick-parser: function [ commands [block!]
     ]
 ]
 
-flick: function [ commands [block!]
-    {parses a block of flick commands surrounded by attempt blocks}
+flick: function [ {parses a block of flick commands surrounded by attempt blocks}
+    commands [block!]
 ][
     runs: copy []
     parse commands [ some [
