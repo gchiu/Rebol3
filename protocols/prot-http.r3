@@ -11,7 +11,7 @@ REBOL [
 	}
 	Name: 'http
 	Type: 'module
-	Version: 0.1.45
+	Version: 0.1.46
 	File: %prot-http.r3
 	Purpose: {
 		This program defines the HTTP protocol scheme for REBOL 3.
@@ -208,7 +208,9 @@ do-request: func [
 	info/headers: info/response-line: info/response-parsed: port/data:
 	info/size: info/date: info/name: none
 	write port/state/connection
-	make-http-request spec/method to file! any [spec/path %/]
+	make-http-request spec/method any [spec/path %/]
+	; to file! double encodes any % in the url
+	; make-http-request spec/method to file! any [spec/path %/]
 	spec/headers spec/content
 ]
 parse-write-dialect: func [port block /local spec debug] [
