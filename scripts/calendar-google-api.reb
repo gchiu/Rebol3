@@ -20,7 +20,7 @@ Rebol [
 		11. This file never changes so you can embed it in your script
 		12. You now build a query with scope set to the calendar.  Use your own gmail account for the login_hint
 		13. Send the system web browser to the authentication server
-		14. You may have to login to your google account.  If already logged in you'll be asked if it's okay to allow your project access to you calendar
+		14. You may have to login to your google account.  If already logged in you'll be asked if it's okay to allow your project access to your calendar
 		15. Copy the generated access token and paste it into the view field that this script brings up ( or just copy it and change the value of settings/token with it ).  We don't need to keep it as it's just used once to get our long lasting refresh token
 		16. We now form our query to exchange our access token for the refresh token. Bizzarely the redirect_uri parameter must not be URL encoded so we add it after we have formed the query
 		17. We now post to the token-server to get our refresh_token 
@@ -29,6 +29,8 @@ Rebol [
 		20. We're going to immediately refresh the access token returned
 		21. Call the token server using our refresh_token to get a new access_token
 		22. Create a simple calendar event.  Note that currently the JSON returned can't be loaded by altjson's load-json function as it has self: something, and 'self is a protected word
+
+		NB: steps 1-19 are one time only.  If you keep trying to get refesh tokens, you'll end up with invalid_token errors ( seen in the cURL script)
 	}
 ]
 
@@ -141,7 +143,7 @@ resp: make object! [
 }
 
 ; Step #20
-query: to-webform [
+query: to-webform compose [
 	client_id: (settings/installed/client_id)
 	client_secret: (settings/installed/client_secret)
 	refresh_token: (resp/refresh_token)
