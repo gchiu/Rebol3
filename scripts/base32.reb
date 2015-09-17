@@ -2,7 +2,7 @@ Rebol [
     file: %base32.reb
     date: 17-Sep-2015
     author: "Graham Chiu"
-    version: 0.0.2
+    version: 0.0.3
     notes: {
         encodes string to base32 or base32hex
         padding to 5 characters is not required in this method
@@ -20,11 +20,11 @@ to-base32: function [ st [string!]
     ["0123456789abcdefghijklmnopqrstuv"]; base32hex
     ["abcdefghijklmnopqrstuvwxyz234567"]; base32
     base2: [16 8 4 2 1]
-    either not decode [
+    ajoin either not decode [
         ; turn st, to be encoded, into a "binary" string
         b2: enbase/base st 2
         ; convert each block of 5 into a char from the accepted list
-        ajoin collect [
+        collect [
             while [not empty? b2][
                 five: take/part b2 5
                 ; convert this "binary" into decimal, and look at blocks of 5 eg. "01111"
@@ -51,7 +51,7 @@ to-base32: function [ st [string!]
             ]
         ]
         ; we now have a very long string of "binary". We need to take it in blocks of 8 and convert back to characters
-        ajoin collect [
+        collect [
             while [not empty? result][
                 attempt [
                     keep to-char debase/base take/part result 8 2
