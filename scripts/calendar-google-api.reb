@@ -3,7 +3,7 @@ Rebol [
 	title: "Access Google APIs"
 	author: "Graham Chiu"
 	date: 16-Sep-2015
-	version: 0.0.1
+	version: 0.0.3
 	notes: {
 		This script just uses the calendar api.  Others are similar.
 
@@ -28,12 +28,13 @@ Rebol [
 		19. The JSON object successfully returned
 		20. We're going to immediately refresh the access token returned
 		21. Call the token server using our refresh_token to get a new access_token
-		22. Create a simple calendar event.  Note that currently the JSON returned can't be loaded by altjson's load-json function as it has self: something, and 'self is a protected word
+		22. Demo add appointment
 
 		NB: steps 1-19 are one time only.  If you keep trying to get refesh tokens, you'll end up with invalid_token errors ( seen in the cURL script)
 	}
 ]
 
+; steps #1 - #11 are in the notes above
 token-server: https://www.googleapis.com/oauth2/v3/token
 calendar-api: https://www.googleapis.com/calendar/v3/calendars/primary/
 
@@ -63,7 +64,6 @@ resources: [
     %altjson.reb http://reb4.me/r3/altjson
     %altwebform.reb http://reb4.me/r3/altwebform
     %r3-gui.reb http://www.atronixengineering.com/r3/r3-gui.r3
-    %form-date.reb http://reb4.me/r3/form-date
 ]
 
 ; one time download files we need
@@ -170,25 +170,14 @@ make object! [
 }
 
 ; change the expires_in to an actual datetime so we can check it later on, and see if we have to get another one
-jtoken/expires_in: now + jtoken/expires_in
+jtoken/expires_in: now + to time! jtoken/expires_in
 
 Add-Calendar-Entry: function [{Add a basic entry to primary calendar}
 	start-datetime [date!] end-datetime [date!] description [string!]
 ][
 	start-datetime/zone: end-datetime/zone: now/zone
 	api: join calendar-api "events"
-	payload: make object! compose/deep [
-		start: make object! [ 
-			dateTime: (form-date start-datetime "%Y-%m-%dT%H:%M:%S%z")
-		]
-		end: make object! [ 
-			dateTime: (form-date end-datetime "%Y-%m-%dT%H:%M:%S%z")
-		]
-		summary: (description)
-	]
-
-	;probe to-json payload
-
+	payload: copy/deep [start: [dateTime: :start-datetime] end: [dateTime: :end-datetime] summary: :description]
 	response: write api compose/deep [
 		POST
 		[
@@ -200,4 +189,4 @@ Add-Calendar-Entry: function [{Add a basic entry to primary calendar}
 ]
 
 ; Step #22
-example: to string! add-calendar-entry 16-09-2015/16:00 16-09-2015/17:00 "Call Hostilefork"
+example: load-json to string! add-calendar-entry 16-09-2015/16:00 16-09-2015/17:00 "Call Hostilefork"
