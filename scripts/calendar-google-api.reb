@@ -3,14 +3,14 @@ Rebol [
 	title: "Access Google APIs"
 	author: "Graham Chiu"
 	date: 16-Sep-2015
-	version: 0.0.3
+	version: 0.0.5
 	notes: {
 		This script just uses the calendar api.  Others are similar.
 
 		1. You need to be an authenticated user of the calendar.  See https://developers.google.com/google-apps/calendar/auth
 		2. From the developers console https://console.developers.google.com/ you need to create a project
 		3. Once you have a project, click on "Apis and Auth/APIs"
-		4. Click on the blue button "Enable Api"
+		4. Choose the Calendar API and click on the blue button "Enable Api"
 		5. Click on "Apis and Auth/Credentials", and then the blue button "Add Credentials"
 		6. Select OAuth 2.0 Client ID
 		7. Application type, choose other from the radio buttons
@@ -56,7 +56,7 @@ settings: make object! [
     gmail: youraccount@gmail.com
 ]
 
-authenication-server: to url! append settings/installed/auth_uri "?"
+authentication-server: to url! append settings/installed/auth_uri "?"
 
 resources: [
     %prot-http.reb https://raw.githubusercontent.com/gchiu/Rebol3/master/protocols/prot-http.r3
