@@ -1,9 +1,9 @@
 Rebol [
 	title: "Rebol3 Inspector Gadget"
 	file: %inspector.reb
-	date: 28-Apr-2014
+	date: [28-Apr-2014 19-Sep-2015]
 	author: "Graham Chiu"
-	version: 0.0.2
+	version: 0.0.3
 	purpose: {browse an object/map/block}
 	notes: {inspired by Carl's word browser}
 ]
@@ -20,7 +20,7 @@ foreach [script location] resources [
 ]
 
 collection?: function [o][
-	either r: find ['object! 'block! 'map!] type?/word o [r/1][none]
+	either r: find ['object! 'block! 'map!] type?/word :o [r/1][none]
 ]
 
 comment { not working ...
@@ -61,8 +61,7 @@ clear-lists: func [faces [block!]
 ]
 
 inspect: function [iface][
-	u: self
-	text-lists: []
+	text-lists: copy []
 
 	expand: function [face
 	][
@@ -76,19 +75,20 @@ inspect: function [iface][
 			]
 		]
 		section: get to path! p
-		either r: collection? section [
-			set-face/field ntl either block? section [section][words-of section] 'data
+		either r: collection? :section [
+			if ntl [
+				set-face/field ntl either block? section [section][words-of section] 'data
+			]
 			set-face tb mold r
 		][
 			set-face tb 
-			either string? type?/word section [
+			either string? type?/word :section [
 				section
 			][
-				mold section
+				mold :section
 			]
 		]
 	]
-
 
 	lay: layout [
 		hgroup [
@@ -98,15 +98,7 @@ inspect: function [iface][
 			t4: text-list on-action [expand face]
 			t5: text-list on-action [expand face]
 			t6: text-list on-action [expand face]
-			t7: text-list on-action [
-				p: copy [iface]
-				foreach tl text-lists [
-					append p get-selected tl
-					if tl = face [ break]
-				]
-				section: get to path! p
-				set-face tb mold section
-			]
+			t7: text-list on-action [expand face]
 			tb: area "(value)"
 		]
 	]
@@ -117,7 +109,8 @@ inspect: function [iface][
 	view/modal lay
 ]
 
-j: load-json to string! read https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest
+u: self
+j: load-json https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest
 
 lay: layout compose [
 	vgroup [
@@ -132,4 +125,7 @@ lay: layout compose [
 go: function [][
 	view/options lay [offset: 100x100]
 ]
+
+p: make port! http://www.rebol.com
+inspect p
 
