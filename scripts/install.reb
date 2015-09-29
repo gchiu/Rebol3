@@ -2,7 +2,7 @@ Rebol [
 	title: "Ren garden pre-installer"
 	author: "Graham"
 	date: 30-Sep-2015
-	version: 0.0.4
+	version: 0.0.5
 	purpose: "Downloads files to compile ren-c and ren garden"
 	notes: {needs a version of ren-c that has Graham's prot-http.reb}
 ]
@@ -11,7 +11,6 @@ root: %/c/r3/
 
 download-file: function [ target [file!] source [url!]][
 	if exists? target [exit]
-
 	if error? set/any 'err try [
 		write target read source
 		source: none
@@ -49,9 +48,7 @@ sources: [
 ]
 
 for-each [target source] sources [
-	unless exists? target [
-		download-file target source
-	]
+	download-file target source
 	print ["Unzipping" target]
 	unzip %./ target
 ]
@@ -66,10 +63,8 @@ binaries: [
 ]
 
 for-each [target source] binaries [
-	unless exists? target [
-		print ["downloading" source "as" target]
-		download-file target source
-	]	
+	print ["downloading" source "as" target]
+	download-file target source
 ]
 
 print "Finished downloads, starting installers"
