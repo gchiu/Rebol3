@@ -2,7 +2,7 @@ Rebol [
 	title: "Ren garden pre-installer"
 	author: "Graham"
 	date: 30-Sep-2015
-	version: 0.0.2
+	version: 0.0.3
 	purpose: "Downloads files to compile ren-c and ren garden"
 	notes: {needs a version of ren-c that has Graham's prot-http.reb}
 ]
@@ -25,9 +25,10 @@ download-file: function [ target [file!] source [url!]][
 	]
 ]
 
-if not exists? %r3-gc.exe [
+unless exists? %r3-gc.exe [
 	download-file %r3-gc.exe http://www.compkarori.com/r3/r3.exe
-	fail "Run this script using r3-gc.exe"
+	print "Run this script using r3-gc.exe"
+	halt
 ]
 
 download-file %unzip.reb https://raw.githubusercontent.com/gchiu/Rebol3/master/scripts/unzip.reb
