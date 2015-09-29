@@ -2,7 +2,8 @@ Rebol [
 	title: "Ren garden pre-installer"
 	author: "Graham"
 	date: 30-Sep-2015
-	purpose: "Start the setup for Ren-c"
+	version: 0.0.2
+	purpose: "Downloads files to compile ren-c and ren garden"
 	notes: {needs a version of ren-c that has Graham's prot-http.reb}
 ]
 
