@@ -2,14 +2,26 @@ Rebol [
     title: "Ren garden pre-installer"
     author: "Graham"
     date: 30-Sep-2015
-    version: 0.0.6
+    version: 0.0.7
     purpose: "Downloads files to compile ren-c and ren garden"
     notes: {needs a version of ren-c that has Graham's prot-http.reb
-        NB: this script doesn't work yet because unzip as decompress/gzip is not working yet
+        NB: this script downloads an unzip.exe until we have native unzip working again
     }
 ]
 
-root: %/c/r3/
+root: %/c/r4/
+
+unless exists? %r3-gc.exe [
+	print "Downloading r3-gc.exe"
+    write %r3-gc.exe read http://www.compkarori.com/r3/r3.exe
+    print "Run this script using gc.cmd with admin privs"
+    write %gc.cmd "r3-gc install.reb"
+    quit/now
+]
+
+if not value? 'for-each [
+	do make error! "Needs r3-gc.exe.  Run gc.cmd from your windows shell with admin priviledges"
+]
 
 download-file: function [ target [file!] source [url!]][
     if exists? target [exit]
@@ -54,15 +66,9 @@ descend-path: function [{returns a path where p holds types decimal! string! or 
     start
 ]
 
-unless exists? %r3-gc.exe [
-    write %r3-gc.exe read http://www.compkarori.com/r3/r3.exe
-    print "Run this script using r3-gc.exe"
-    halt
-]
-
-download-file %unzip.reb https://raw.githubusercontent.com/gchiu/Rebol3/master/scripts/unzip.reb
-
-do %unzip.reb
+; waiting for a working unzip
+; download-file %unzip.reb https://raw.githubusercontent.com/gchiu/Rebol3/master/scripts/unzip.reb
+; do %unzip.reb
 
 if not exists? root [ 
     print ["making" root ]
@@ -77,10 +83,13 @@ sources: [
     %develop.zip https://github.com/metaeducation/ren-cpp/archive/develop.zip
 ]
 
+download-file %unzip.exe http://stahlworks.com/dev/unzip.exe
+
 for-each [target source] sources [
     download-file target source
     print ["Unzipping" target]
-    unzip %./ target
+    call/wait join "unzip " target
+    ; unzip %./ target
 ]
 
 if error? set/any 'err try [rename %ren-c-master %rebol ][probe err]
@@ -103,11 +112,14 @@ for-each installer [ %cmake.exe %qt.exe ][
     call/wait form installer
 ]
 
-print ["Make sure that mingw32-make is in your path when using the Qt 5.5 for Desktop console that is needed to run the compilers.  You can not use the command shell or powershell."]
-print ["If Qt console path does not show something similar to this C:\Qt\5.5\mingw492_32\bin;C:\Qt\Tools\mingw492_32\bin; then you'll need to add it manually using the provided addpath.cmd file."]
+print "Make sure that mingw32-make is in your path when using the Qt 5.5 for Desktop console that is needed to run the compilers."
+print "You can not use the command shell or powershell."
+print "If Qt console path does not show something similar to this"
+print "C:\Qt\5.5\mingw492_32\bin;C:\Qt\Tools\mingw492_32\bin; "
+print "then you'll need to add it manually using the provided addpath.cmd file."
+print ""
 
 script: copy "set path=%path%;"
-
 
 p: descend-path %/c/ [ %qt/ %tools/ "mingw" %bin/ ]
 if exists? join p %mingw32-make.exe [
