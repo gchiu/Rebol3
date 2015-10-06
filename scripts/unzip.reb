@@ -1,11 +1,15 @@
 REBOL [
-	title: "rebzip-R3"
-	author: "Richard Smolak Vincent Ecuyer"
-	note: {Based on rebzip.r from www.REBOL.org by Vincent Ecuyer
-		30-Sep-2015 Modified by Graham to use and* for ren-c
-	}
-	version: 0.1.0
-	
+    title: "rebzip-R3"
+    author: "Richard Smolak Vincent Ecuyer"
+    note: {
+        Based on rebzip.r from www.REBOL.org by Vincent Ecuyer
+    }
+    history: [
+        30-Sep-2015 {Modified by @GrahamChiu to use and* for ren-c}
+        5-Oct-2015 {Modified by @HostileFork to use DECOMPRESS/ONLY, detabbed}
+    ]
+    version: 0.1.0
+    
 ]
 
 ctx-zip: context [
@@ -13,9 +17,9 @@ ctx-zip: context [
         "Returns a CRC32 checksum."
         data [any-string! binary!] "Data to checksum"
     ][
-		copy skip to binary! checksum/method data 'crc32 4
-	]
-	
+        copy skip to binary! checksum/method data 'crc32 4
+    ]
+    
     ;signatures
     local-file-sig: #{504B0304}
     central-file-sig: #{504B0102}
@@ -26,36 +30,36 @@ ctx-zip: context [
         "Converts an integer to a little-endian long."
         value [integer!] "Value to convert"
     ][
-		copy reverse skip to binary! value 4
+        copy reverse skip to binary! value 4
     ]
-	
+    
     to-ishort: func [
         "Converts an integer to a little-endian short."
         value [integer!] "Value to convert"
     ][
-		copy/part reverse skip to binary! value 4 2
+        copy/part reverse skip to binary! value 4 2
     ]
-	
+    
     to-long: func [
         "Converts an integer to a big-endian long."
         value [integer!] "Value to convert"
     ][
-		copy skip to binary! value 4
-	]
-	
+        copy skip to binary! value 4
+    ]
+    
     get-ishort: func [
         "Converts a little-endian short to an integer."
         value [any-string! binary! port!] "Value to convert"
     ][
-		to integer! reverse copy/part value 2
-	]
-	
+        to integer! reverse copy/part value 2
+    ]
+    
     get-ilong: func [
         "Converts a little-endian long to an integer."
         value [any-string! binary! port!] "Value to convert"
     ][
-		to integer! reverse copy/part value 4
-	]
+        to integer! reverse copy/part value 4
+    ]
 
     to-msdos-time: func [
         "Converts to a msdos time."
@@ -96,10 +100,10 @@ ctx-zip: context [
     ]
     
     zip-entry: func [
-{Compresses a file and* returns [
+        {Compresses a file and returns [
          local file header + compressed file
          central file directory entry
-     ]}
+        ]}
         name [file!] "Name of file"
         date [date!] "Modification date of file"
         data [any-string! binary!] "Data to compress"
@@ -131,9 +135,9 @@ ctx-zip: context [
         ; info on data after compression
         compressed-size: to-ilong length? data
 
-		reduce [
+        reduce [
             ; local file entry
-			rejoin [
+            rejoin [
                 local-file-sig
                 #{0000} ; version
                 #{0000} ; flags
@@ -144,7 +148,7 @@ ctx-zip: context [
                 ]
                 to-msdos-time date/time
                 to-msdos-date date/date
-                crc     ; crc-32				
+                crc     ; crc-32                
                 compressed-size
                 uncompressed-size
                 to-ishort length? name ; filename length
@@ -184,13 +188,13 @@ ctx-zip: context [
     ]
 
     any-file?: func [
-        "Returns TRUE for file and* url values." value [any-type!]
+        "Returns TRUE for file and url values." value [any-value!]
     ][
-		any [file? value url? value]
-	]
+        any [file? value url? value]
+    ]
 
     to-path-file: func [
-        {Converts url! to file! and* removes heading "/"}
+        {Converts url! to file! and removes heading "/"}
         value [file! url!] "Value to convert"
     ][
         if file? value [
@@ -206,13 +210,13 @@ ctx-zip: context [
     ]
 
     set 'zip func [
-		{Builds a zip archive from a file or+ a block of files.
-     Returns number of entries in archive.}
+        {Builds a zip archive from a file or a block of files.
+        Returns number of entries in archive.}
         where [file! url! binary! string!] "Where to build it"
         source [file! url! block!] "Files to include in archive"
         /deep "Includes files in subdirectories"
         /verbose "Lists files while compressing"
-		/only "Include the root source directory"
+        /only "Include the root source directory"
     /local
         name data entry nb-entries files root no-modes
         central-directory files-size out date
@@ -226,13 +230,13 @@ ctx-zip: context [
 
         files-size: nb-entries: 0
         central-directory: copy #{}
-		
-		either all [not only file? source dir? source][
-			root: source source: read source
-		][
-			root: %./
-		]
-		
+        
+        either all [not only file? source dir? source][
+            root: source source: read source
+        ][
+            root: %./
+        ]
+        
         source: compose [(source)]
         while [not tail? source][
             name: source/1
@@ -253,15 +257,15 @@ ctx-zip: context [
                 ; is next one data or+ filename?
                 data: either any [tail? next source any-file? source/2][
                     either #"/" = last name [copy #{}][
-						if not no-modes [
-							date: modified? root/:name
-						]
+                        if not no-modes [
+                            date: modified? root/:name
+                        ]
                         read root/:name
                     ]
                 ][
                     first source: next source
                 ]
-				all [not binary? data data: to binary! data]
+                all [not binary? data data: to binary! data]
                 name: to-path-file name
                 if verbose [print name]
                 ; get compressed file + directory entry
@@ -293,17 +297,13 @@ ctx-zip: context [
         nb-entries
     ]
 
-    set 'unzip func [
-{Decompresses a zip archive to a directory or+ a block.
-     Only works with compression methods 'store and* 'deflate.}
-            where  [file! url! any-block!]  "Where to decompress it"
-            source [file! url! any-string! binary!] "Archive to decompress"
-            /verbose "Lists files while decompressing (default)"
-            /quiet "Don't lists files while decompressing"
-    /local
-        flags method compressed-size uncompressed-size
-        name-length name extrafield-length data time date
-        uncompressed-data nb-entries path file info errors crc uncompressed-size-raw
+    set 'unzip function [
+        {Decompresses a zip archive to a directory or+ a block.
+         Only works with compression methods 'store and 'deflate.}
+        where  [file! url! any-block!]  "Where to decompress it"
+        source [file! url! any-string! binary!] "Archive to decompress"
+        /verbose "Lists files while decompressing (default)"
+        /quiet "Don't lists files while decompressing"
     ][
         errors: 0
         info: unless all [quiet not verbose][
@@ -323,8 +323,11 @@ ctx-zip: context [
                 2 skip ; version
                 copy flags 2 skip
                     (if not zero? flags/1 and* 1 [return false])
-                copy method 2 skip
-                    (method: get-ishort method)
+                copy method-number 2 skip (
+                    method-number: get-ishort method-number
+                    method: select [0 store 8 deflate] method-number
+                    unless method [method: method-number]
+                )
                 copy time 2 skip (time: get-msdos-time time)
                 copy date 2 skip (
                     date: get-msdos-date date
@@ -332,7 +335,7 @@ ctx-zip: context [
                     date: date - now/zone
                 )
                 copy crc 4 skip (   ; crc-32
-                    crc: reverse crc
+                    crc: get-ilong crc
                 )
                 copy compressed-size 4 skip
                     (compressed-size: get-ilong compressed-size)
@@ -349,35 +352,65 @@ ctx-zip: context [
                 extrafield-length skip
                 data: compressed-size skip
                 (
-                    switch/default method [
-                        0 [
-                            uncompressed-data:
-                                copy/part data compressed-size
-                            info "^- -> ok [store]^/"
-                        ]
-                        8 [
-                            data: either zero? uncompressed-size [
-                                copy #{}
-                            ][
-								rejoin [#{789C} copy/part data compressed-size crc uncompressed-size-raw]
-                            ]
+                    uncompressed-data: catch [
 
-                            either error? try [
-								data: decompress/gzip data
-							][
-                                info "^- -> failed [deflate]^/"
-                                errors: errors + 1
-                                uncompressed-data: none
-                            ][
-								uncompressed-data: data
-                                info "^- -> ok [deflate]^/"
-                            ]
+                        ; STORE(0) and DEFLATE(8) are the only widespread
+                        ; methods used for .ZIP compression in the wild today
+
+                        if method = 'store [
+                            throw copy/part data compressed-size
                         ]
-                    ][
-                        info ["^- -> failed [method " method "]^/"]
-                        errors: errors + 1
-                        uncompressed-data: none
+
+                        unless method = 'deflate [
+                            info ["^- -> failed [method " method "]^/"]
+                            throw none
+                        ]
+
+                        ; Code used to contain:
+                        ;
+                        ;     decompress rejoin [
+                        ;         #{789C}
+                        ;         copy/part data compressed-size
+                        ;         crc
+                        ;         uncompressed-size-raw
+                        ;     ]
+                        ;
+                        ; See smack-down from zlib author regarding putting
+                        ; a zlib header on this and gluing other stuff on,
+                        ; then expecting it to be understood somehow:
+                        ;
+                        ;     http://stackoverflow.com/a/32911237/211160
+                        ;
+                        ; Ren/C adapted with new /ONLY feature on decompress
+                        ; which removes the need to forge the envelope.
+
+                        data: copy/part data compressed-size
+                        if error? trap [
+                            data: decompress/only/limit data uncompressed-size
+                        ][
+                            info "^- -> failed [deflate]^/"
+                            throw none
+                        ]
+
+                        if uncompressed-size != length data [
+                            info "^- -> failed [wrong output size]^/"
+                            throw none
+                        ]
+
+                        if crc != checksum/method data 'crc32 [
+                            info "^- -> failed [bad crc32]^/"
+                            throw none
+                        ]
+
+                        throw data
                     ]
+
+                    either uncompressed-data [
+                        info rejoin ["^- -> ok [" method "]^/"]
+                    ][
+                        errors: errors + 1
+                    ]
+
                     either any-block? where [
                         where: insert where name
                         where: insert where either all [
@@ -385,7 +418,7 @@ ctx-zip: context [
                             empty? uncompressed-data
                         ][none][uncompressed-data]
                     ][
-                        ; make directory and* / or+ write file
+                        ; make directory and / or write file
                         either #"/" = last name [
                             if not exists? where/:name [
                                 make-dir/deep where/:name
