@@ -2,18 +2,33 @@ Rebol [
     System: "REBOL [R3] Language Interpreter and Run-time Environment"
     title: "Synchronous TCP"
     file: %prot-synctcp.reb
-    author: ["Graham" ]
+    author: ["Graham"]
     name: synctcp
     type: module
-    version: 0.0.1
-    Date: [ 29-Mar-2017 ]
+    version: 0.0.2
+    Date: [29-Mar-2017]
     Purpose: "R3 send and receive synchronous TCP"
-    Note: ""
     Description: {
         an early work at seeing if we can get simple open, write, read, and close on a tcp port
+
+        Examples:
+
+        1. Login to pop3 server and get status
+        pop: open/read synctcp://pop.clear.net.nz:110
+        read pop ; fetch the ready message from the server
+        print to string! write pop to binary! join-of {USER *****} newline
+        print to string! write pop to binary! join-of {PASS *****} newline
+        print to string! write pop to binary! join-of {STAT} newline
+        print string! write pop to binary! join-of {QUIT} newline
+
+        2. Get head from a web server
+        head: to binary! {HEAD / HTTP/1.1^/Accept: */*^/Accept-Charset: utf-8^/Host: www.rebol.com^/User-Agent: Ren-C^/^/}
+        port: open/write synctcp://www.rebol.com
+        print to string! write port head
     }
     History: {
         0.0.1 first version, not working :(
+        0.0.2 second version, can now do some successful interaction with pop3 server and http server
     }
 ]
 
@@ -27,8 +42,8 @@ make-synctcp-error: func [
     ]
 ]
 
-awake-handler: func [event /local tcp-port] [
-    print ["=== Client event:" event/type]
+read-awake-handler: func [event /local tcp-port] [
+    print ["=== RH Client event:" event/type]
     tcp-port: event/port
     switch/default event/type [
         error [
@@ -41,20 +56,60 @@ awake-handler: func [event /local tcp-port] [
             false
         ]
         connect [
-            print "connected "
             tcp-port/spec/port-state: 'ready
-            write tcp-port tcp-port/locals
-            ; do we ever get here since the wrote event takes us elsewhere
+            read tcp-port
             false
         ]
         read [
-            print ["^\read:" length? tcp-port/data]
+            print ["^\Read Handler read:" length tcp-port/data]
             tcp-port/spec/data: copy tcp-port/data
             clear tcp-port/data
             true
         ]
         wrote [
-            print "written, so read port"
+            read tcp-port
+            false
+        ]
+        close [
+            print "closed on us!"
+            tcp-port/spec/port-state: _
+            close tcp-port
+            true
+        ]
+    ] [true]
+]    
+
+write-awake-handler: func [event /local tcp-port] [
+    print ["=== WH Client event:" event/type]
+    tcp-port: event/port
+    switch/default event/type [
+        error [
+            print "error event received"
+            tcp-port/spec/port-state: 'error
+            true
+        ]
+        lookup [
+            open tcp-port
+            print "tcp-port opened in lookup"
+            false
+        ]
+        connect [
+            print "connected to tcp-port in write handler"
+            tcp-port/spec/port-state: 'ready
+            print/only "Writing TCP port locals: "
+            probe to string! tcp-port/locals
+            write tcp-port tcp-port/locals
+            ; do we ever get here since the wrote event takes us elsewhere
+            false
+        ]
+        read [
+            print ["^\Write Handler read:" length tcp-port/data]
+            tcp-port/spec/data: copy tcp-port/data
+            print ["Read: " probe to string! tcp-port/data ]
+            clear tcp-port/data
+            true
+        ]
+        wrote [
             read tcp-port
             false
         ]
@@ -74,11 +129,29 @@ sync-write: procedure [port [port!] data
             open port
     ]
     tcp-port: port/state/tcp-port
-    tcp-port/awake: :awake-handler
+    tcp-port/awake: :write-awake-handler
     either tcp-port/spec/port-state = 'ready [
             write tcp-port data
     ] [
             tcp-port/locals: copy data
+    ]
+    unless port? wait [tcp-port port/spec/timeout] [
+            make-synctcp-error "timeout on tcp-port"
+    ]
+]
+
+sync-read: procedure [port [port!] 
+        /local tcp-port
+] [
+    unless open? port [
+            open port
+    ]
+    tcp-port: port/state/tcp-port
+    tcp-port/awake: :read-awake-handler
+    either tcp-port/spec/port-state = 'ready [
+            read tcp-port
+    ] [
+            ; tcp-port/locals: copy data
     ]
     unless port? wait [tcp-port port/spec/timeout] [
             make-synctcp-error "timeout on tcp-port"
@@ -93,6 +166,8 @@ sys/make-scheme [
     actor: [
         open: func [
             port [port!]
+            /read {set up port for reading on connect}
+            /write {set up port Writing on connect}
             /local tcp-port
         ] [
             if port/state [return port]
@@ -109,7 +184,12 @@ sys/make-scheme [
                 port-state: _
                 data: _
             ]
-            tcp-port/awake: _
+            if read [
+                tcp-port/awake: :read-awake-handler
+            ]
+            if write [
+                tcp-port/awake: :write-awake-handler
+            ]
             open tcp-port
             port
         ]
@@ -117,7 +197,6 @@ sys/make-scheme [
             port/state/tcp-port/spec/port-state
         ]
         write: func [port [port!] data] [
-            print "Writing to port"
             if not open? port [
                 print "Port not open, attempting to reopen"
                 open port
@@ -126,11 +205,7 @@ sys/make-scheme [
             port/state/tcp-port/spec/data
         ]
         read: func [port [port!]] [
-            print "actor read"
-            read port/state/tcp-port
-            unless port? wait [port/state/tcp-port port/spec/timeout] [
-                make-synctcp-error "timeout on tcp-port"
-            ]
+            sync-read port
             return port/state/tcp-port/spec/data
         ]
         close: func [port [port!]] [
