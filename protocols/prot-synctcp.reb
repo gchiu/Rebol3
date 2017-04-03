@@ -14,7 +14,7 @@ Rebol [
         Examples:
 
         1. Login to pop3 server and get status
-        pop: open/read synctcp://pop.clear.net.nz:110
+        pop: open synctcp://pop.clear.net.nz:110
         read pop ; fetch the ready message from the server
         print to string! write pop to binary! join-of {USER *****} newline
         print to string! write pop to binary! join-of {PASS *****} newline
@@ -23,7 +23,7 @@ Rebol [
 
         2. Get head from a web server
         head: to binary! {HEAD / HTTP/1.1^/Accept: */*^/Accept-Charset: utf-8^/Host: www.rebol.com^/User-Agent: Ren-C^/^/}
-        port: open/write synctcp://www.rebol.com
+        port: open synctcp://www.rebol.com
         print to string! write port head
     }
     History: {
@@ -42,6 +42,23 @@ make-synctcp-error: func [
     ]
 ]
 
+; port/state/tcp-port [
+;    spec [object!] 
+;                title: "TCP Networking"
+;                scheme: 'tcp
+;                ref: tcp://www.rebol.com:80
+;                path: _
+;                host: "www.rebol.com"
+;                port-id: 80
+;                timeout: 30
+;                port-state: ready
+;                data: binary! - saved by port actor
+;    scheme [object! - template] 
+;    actor [handle!] 
+;    awake [current handler in use] 
+;    state [used by query] 
+;    data locals[free]
+; ]
 read-awake-handler: func [event /local tcp-port] [
     print ["=== RH Client event:" event/type]
     tcp-port: event/port
@@ -166,8 +183,6 @@ sys/make-scheme [
     actor: [
         open: func [
             port [port!]
-            /read {set up port for reading on connect}
-            /write {set up port Writing on connect}
             /local tcp-port
         ] [
             if port/state [return port]
@@ -184,12 +199,6 @@ sys/make-scheme [
                 port-state: _
                 data: _
             ]
-            if read [
-                tcp-port/awake: :read-awake-handler
-            ]
-            if write [
-                tcp-port/awake: :write-awake-handler
-            ]
             open tcp-port
             port
         ]
@@ -201,16 +210,22 @@ sys/make-scheme [
                 print "Port not open, attempting to reopen"
                 open port
             ]
+            port/state/tcp-port/awake: default [:write-awake-handler]
             sync-write port data
             port/state/tcp-port/spec/data
         ]
         read: func [port [port!]] [
+            if not open? port [
+                print "Port not open, attempting to reopen"
+                open port
+            ]
+            port/state/tcp-port/awake: default [:read-awake-handler]
             sync-read port
             return port/state/tcp-port/spec/data
         ]
         close: func [port [port!]] [
             close port/state/tcp-port
-            port/state: _
+            port/state/tcp-port/spec/port-state: _
         ] 
         query: func [
             port [port!]
