@@ -103,7 +103,7 @@ comment {
                 if find data/1/spec/auth-methods 'PLAIN [
                     write data/1 net-log/C rejoin ["User " user/user crlf]
                     ; write data/1 net-log/C "AUTH PLAIN^/"
-                    ;write data/1 net-log/C rejoin [ "AUTH PLAIN " enbase rejoin [#"^@" data/1/spec/user #"^@" data/1/spec/pass crlf]]
+                    ;write data/1 net-log/C rejoin [ "AUTH PLAIN " enbase rejoin [#"^@" data/1/spec/user #"^@" data/1/spec/pass] crlf]
                 ]
 }
 				;if find/data/1/spec/auth-methods 'LOGIN [
