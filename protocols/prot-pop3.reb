@@ -5,24 +5,39 @@ Rebol [
     author: ["Graham"]
     name: pop3
     type: module
-    version: 0.0.2
-    Date: [29-Mar-2017]
+    version: 0.0.3
+    Date: [29-Mar-2017 14-Apr-2017]
     Purpose: "R3 send and receive synchronous TCP"
     Description: {
+        mbox: open pop3://user:pass@pop.server.com:110
+
+        or
+
+        mbox: open pop3://user@gmail.com:pass@pop.gmail.com:995
+
+        then;
+
+        email: pick mbox 1
+        length mbox
+        close mbox
     }
     History: {
+        14-Apr-2017 working version that uses either TLS or TCP depending on port number
     }
 ]
 
- 
-make-synctcp-error: func [
+crlfbin: to binary! crlf
+digit: charset [#"0" - #"9"]
+digits: [some digit]
+
+make-pop3-error: func [
     message
 ][
-    do make error! [
-        type: 'Access
-        id: 'Protocol
-        arg1: message
-    ]
+    FAIL ["POP3 protocol error: " message]
+]
+
+write-nlb: func [port [port!] data][
+    write port join-of to binary! data crlfbin
 ]
 
 read-awake-handler: func [event /local tcp-port] [
@@ -120,7 +135,7 @@ sync-write: procedure [port [port!] data
             tcp-port/locals: copy data
     ]
     unless port? wait [tcp-port port/spec/timeout] [
-            make-synctcp-error "timeout on tcp-port"
+            FAIL "timeout on tcp-port"
     ]
 ]
 
@@ -138,27 +153,23 @@ sync-read: procedure [port [port!]
             ; tcp-port/locals: copy data
     ]
     unless port? wait [tcp-port port/spec/timeout] [
-            make-synctcp-error "timeout on tcp-port"
+            make-pop3-error "timeout on tcp-port"
     ]
 ]
 
 check+: procedure [s [string!]][
     print s
     if not find/part s "+OK" 3 [
-        print "Error"
-        halt
+        FAIL "Error when checking for +OK"
     ]
 ]
 
 check+space: procedure [s [string!]][
     print s
     if not find/part s "+ " 2 [
-        print "Error"
-        halt
+        FAIL "Error when checking for +n&bsp;"
     ]
 ]
-
-crlfbin: to binary! crlf
 
 sys/make-scheme [
     name: 'pop3
@@ -168,46 +179,108 @@ sys/make-scheme [
     actor: [
         open: func [
             port [port!]
-            /local tcp-port w authstring
+            /local tcp-port w authstring method sasl-methods
         ] [
             if port/state [return port]
-            if blank? port/spec/host [make-synctcp-error "Missing host address"]
+            if blank? port/spec/host [make-pop3-error "Missing host address"]
             port/state: context [
                 tcp-port: _
             ]
-            port/state/tcp-port: tcp-port: make port! [
-                scheme: 'tls
-                host: port/spec/host
-                port-id: port/spec/port-id
-                timeout: port/spec/timeout
-                ref: rejoin [synctcp:// host ":" port-id]
-                port-state: _
-                data: _
+            either find [465 587 993 995] port/spec/port-id [
+                port/state/tcp-port: tcp-port: make port! [
+                    scheme: 'tls
+                    host: port/spec/host
+                    port-id: port/spec/port-id
+                    timeout: port/spec/timeout
+                    ref: rejoin [tls:// host ":" port-id]
+                    port-state: _
+                    data: _
+                    cmd: _
+                    authentication: copy []
+                ]
+            ][
+                port/state/tcp-port: tcp-port: make port! [
+                    scheme: 'tcp
+                    host: port/spec/host
+                    port-id: port/spec/port-id
+                    timeout: port/spec/timeout
+                    ref: rejoin [tcp:// host ":" port-id]
+                    port-state: _
+                    data: _
+                    cmd: _
+                    authentication: copy []
+                ]
+            ]
+            if any [
+                not something? in port/spec 'user
+                not something? in port/spec 'pass
+            ][
+                make-pop3-error "credentials were not supplied when opening the pop3 port"
             ]
             open tcp-port
             ; now open the actual port using username and password
             check+ w: to string! read port
-            check+space w: to string! write port to binary! join-of "AUTH PLAIN" newline
-            authstring: enbase ajoin ["^@" port/spec/user "^@" port/spec/pass]
-            check+ w: to string! write port join-of to binary! authstring crlfbin
-            check+ w: to string! write port join-of to binary! {STAT} crlfbin
+            check+ w: to string! write-nlb port "CAPA"
+            if parse w [thru "USER" to end][
+                append port/state/tcp-port/spec/authentication "USER"
+            ]
+            parse w [thru "SASL" space copy sasl-methods: to newline (
+                parse sasl-methods [
+                    [copy method: to space | copy method: to end] 
+                    (unless empty? method [append port/state/tcp-port/spec/authentication method])
+                ]
+            )]
+
+            case [
+                find port/state/tcp-port/spec/authentication "PLAINAS" [
+                    check+space w: to string! write-nlb port "AUTH PLAIN"
+                    authstring: enbase ajoin ["^@" port/spec/user "^@" port/spec/pass]
+                    check+ w: to string! write-nlb port authstring
+                ]
+                find port/state/tcp-port/spec/authentication "USER" [
+                    check+ w: to string! write-nlb port join-of "USER " port/spec/user 
+                    check+ w: to string! write-nlb port join-of "PASS " port/spec/pass 
+                ]
+                true [FAIL "no suppported authentication methods found"]
+            ]
+            check+ w: to string! write-nlb port {STAT}
             port
         ]
         open?: func [port [port!]] [
             port/state/tcp-port/spec/port-state
         ]
-        pick: func [port [port!] n [integer!]][
+        pick*: func [port [port!] n [integer!]][
             ; RETR message n
             print join-of "sending pick port " n
-            write port join-of to binary! join-of "RETR " n crlfbin
+            ; write port join-of to binary! join-of "RETR " n crlfbin
+            write-nlb port join-of "RETR " n
         ]
-        write: func [port [port!] data] [
+        length: func [port [port!]
+            /local m len
+        ][
+            port/state/tcp-port/spec/cmd: 'length
+            m: to string! write-nlb port "STAT"
+        ]
+        remove: func [port [port!]][
+            return "Remove Not implemented Yet"
+        ]
+        write: func [port [port!] data
+            <local> len
+        ][
             if not open? port [
                 print "Port not open, attempting to reopen"
                 open port
             ]
             port/state/tcp-port/awake: default [:write-awake-handler]
             sync-write port data
+            switch port/state/tcp-port/spec/cmd [
+                'length [
+                    if parse to string! port/state/tcp-port/spec/data ["+OK " copy len: digits to end][
+                        port/state/tcp-port/spec/data: to integer! len
+                        ; this is integer so why does it return string?
+                    ]
+                ]
+            ]
             port/state/tcp-port/spec/data
         ]
         read: func [port [port!]] [
@@ -220,6 +293,7 @@ sys/make-scheme [
             return port/state/tcp-port/spec/data
         ]
         close: func [port [port!]] [
+            write-nlb port "QUIT"
             close port/state/tcp-port
             port/state/tcp-port/spec/port-state: _
         ] 
