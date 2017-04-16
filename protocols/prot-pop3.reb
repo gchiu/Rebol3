@@ -5,6 +5,7 @@ Rebol [
     author: ["Graham"]
     name: pop3
     type: module
+    exports: [UIDL RSET DELETE-POP TOP STAT LIST]
     version: 0.0.3
     Date: [29-Mar-2017 14-Apr-2017]
     Purpose: "R3 send and receive synchronous TCP"
@@ -23,7 +24,28 @@ Rebol [
     }
     History: {
         14-Apr-2017 working version that uses either TLS or TCP depending on port number
+        16-Apr-2017 now able to download multimegabyte email
     }
+]
+
+
+UIDL: func [port [port!]][
+    port/actor/UIDL port
+]
+DELETE-POP: func [port [port!] n][
+    port/actor/DELETE port n
+]
+RSET: func [port [port!]][
+    port/actor/RSET port
+]
+TOP: func [port [port!] n len][
+    port/actor/TOP port n len
+]
+STAT: func [port [port!]][
+    port/actor/STAT port
+]
+LIST: func [port [port!]][
+    port/actor/LIST port
 ]
 
 crlfbin: to binary! crlf
@@ -39,6 +61,9 @@ make-pop3-error: func [
 write-nlb: func [port [port!] data][
     write port join-of to binary! data crlfbin
 ]
+
+; tcp-port/data is used to hold the read/write buffer by the C code
+; tcp-port/spec/data is used by the actor and handlers to store the incoming data
 
 read-awake-handler: func [event /local tcp-port] [
     print ["=== RH Client event:" event/type]
@@ -103,10 +128,23 @@ write-awake-handler: func [event /local tcp-port] [
         ]
         read [
             print ["^\Write Handler read:" length tcp-port/data]
-            tcp-port/spec/data: copy tcp-port/data
-            print ["Read: " probe to string! tcp-port/data ]
+            append tcp-port/spec/data copy tcp-port/data
+            ; print ["Read: " probe join-of copy/part to string! tcp-port/data 100 "..."]
             clear tcp-port/data
-            true
+            ; now decide if we need to exit the write-awake-handler
+            case [
+                tcp-port/spec/cmd = 'RETR 
+                [
+                    either findeofpop tcp-port/spec/data [
+                        tcp-port/spec/cmd: _
+                        true
+                    ][
+                        read tcp-port
+                        false
+                    ]
+                ]
+                true [true]
+            ]
         ]
         wrote [
             read tcp-port
@@ -148,12 +186,12 @@ sync-read: procedure [port [port!]
     tcp-port: port/state/tcp-port
     tcp-port/awake: :read-awake-handler
     either tcp-port/spec/port-state = 'ready [
-            read tcp-port
+        read tcp-port
     ] [
-            ; tcp-port/locals: copy data
+        ; FAIL "unable to open POP3 port"
     ]
     unless port? wait [tcp-port port/spec/timeout] [
-            make-pop3-error "timeout on tcp-port"
+        make-pop3-error "timeout on tcp-port"
     ]
 ]
 
@@ -169,6 +207,11 @@ check+space: procedure [s [string!]][
     if not find/part s "+ " 2 [
         FAIL "Error when checking for +n&bsp;"
     ]
+]
+
+findeofpop: function [data [binary!]][
+    equal? marker: to binary! ajoin [crlf "." crlf]
+    find skip data -5 + length data marker
 ]
 
 sys/make-scheme [
@@ -218,21 +261,18 @@ sys/make-scheme [
                 make-pop3-error "credentials were not supplied when opening the pop3 port"
             ]
             open tcp-port
-            ; now open the actual port using username and password
+            ; now authenticate using username and password.  we need to first parse out the authentication methods
             check+ w: to string! read port
             check+ w: to string! write-nlb port "CAPA"
             if parse w [thru "USER" to end][
                 append port/state/tcp-port/spec/authentication "USER"
             ]
             parse w [thru "SASL" space copy sasl-methods: to newline (
-                parse sasl-methods [
-                    [copy method: to space | copy method: to end] 
-                    (unless empty? method [append port/state/tcp-port/spec/authentication method])
-                ]
+                append port/state/tcp-port/spec/authentication split sasl-methods space
             )]
-
+            ; by default we use the strongest method we have to authenticate
             case [
-                find port/state/tcp-port/spec/authentication "PLAINAS" [
+                find port/state/tcp-port/spec/authentication "PLAIN" [
                     check+space w: to string! write-nlb port "AUTH PLAIN"
                     authstring: enbase ajoin ["^@" port/spec/user "^@" port/spec/pass]
                     check+ w: to string! write-nlb port authstring
@@ -251,15 +291,14 @@ sys/make-scheme [
         ]
         pick*: func [port [port!] n [integer!]][
             ; RETR message n
-            print join-of "sending pick port " n
-            ; write port join-of to binary! join-of "RETR " n crlfbin
+            ; signal to the READ actor that will need to keep reading and not exit the event handler
+            port/state/tcp-port/spec/cmd: 'RETR
             write-nlb port join-of "RETR " n
         ]
         length: func [port [port!]
-            /local m len
         ][
             port/state/tcp-port/spec/cmd: 'length
-            m: to string! write-nlb port "STAT"
+            write-nlb port "STAT"
         ]
         remove: func [port [port!]][
             return "Remove Not implemented Yet"
@@ -272,25 +311,28 @@ sys/make-scheme [
                 open port
             ]
             port/state/tcp-port/awake: default [:write-awake-handler]
+            clear port/state/tcp-port/spec/data
+
             sync-write port data
-            switch port/state/tcp-port/spec/cmd [
+            switch/default port/state/tcp-port/spec/cmd [
                 'length [
-                    if parse to string! port/state/tcp-port/spec/data ["+OK " copy len: digits to end][
-                        port/state/tcp-port/spec/data: to integer! len
-                        ; this is integer so why does it return string?
-                    ]
+                    either parse to string! port/state/tcp-port/spec/data ["+OK " copy len: digits to end][
+                        port/state/tcp-port/spec/cmd: _
+                        to integer! len
+                    ][copy port/state/tcp-port/spec/data]
                 ]
+            ][
+                copy port/state/tcp-port/spec/data
             ]
-            port/state/tcp-port/spec/data
         ]
         read: func [port [port!]] [
-            if not open? port [
+            unless open? port [
                 print "Port not open, attempting to reopen"
                 open port
             ]
             port/state/tcp-port/awake: default [:read-awake-handler]
             sync-read port
-            return port/state/tcp-port/spec/data
+            copy port/state/tcp-port/spec/data
         ]
         close: func [port [port!]] [
             write-nlb port "QUIT"
@@ -302,6 +344,24 @@ sys/make-scheme [
             /local error state
         ][
             query port/state/tcp-port
+        ]
+        LIST: func [port [port!]][
+            to string! write-nlb port "LIST"
+        ]
+        UIDL: func [port [port!]][
+            to string! write-nlb port "UIDL"
+        ]
+        DELETE: func [port [port!] n][
+            to string! write-nlb port join-of "DELE " n
+        ]
+        RSET: func [port [port!]][
+            to string! write-nlb port "RSET"
+        ]
+        TOP: func [port [port!] n len][
+            to string! write-nlb port reform ["TOP" n len]
+        ]
+        STAT: func [port [port!]][
+            to string! write-nlb port {STAT}
         ]
     ]
 ]
