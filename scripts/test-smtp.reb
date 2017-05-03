@@ -2,7 +2,8 @@ rebol [
 	file: %test-smtp.reb
 ]
 
-import %prot-smtp.reb
+;import %prot-smtp.reb
+import <smtp>
 
 date2edate: func [ date ][
 	unspaced [
