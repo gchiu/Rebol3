@@ -6,9 +6,9 @@ Rebol [
     name: pop3
     type: module
     exports: [UIDL RSET DELETE-POP TOP STAT LIST]
-    version: 0.0.3
-    Date: [29-Mar-2017 14-Apr-2017]
-    Purpose: "R3 send and receive synchronous TCP"
+    version: 0.0.4
+    Date: [29-Mar-2017 14-Apr-2017 4-May-2017]
+    Purpose: "receive POP3 email"
     Description: {
         mbox: open pop3://user:pass@pop.server.com:110
 
@@ -25,6 +25,7 @@ Rebol [
     History: {
         14-Apr-2017 working version that uses either TLS or TCP depending on port number
         16-Apr-2017 now able to download multimegabyte email
+         4-May-2017 net-log now working
     }
 ]
 
@@ -66,11 +67,11 @@ write-nlb: func [port [port!] data][
 ; tcp-port/spec/data is used by the actor and handlers to store the incoming data
 
 read-awake-handler: func [event /local tcp-port] [
-    print ["=== RH Client event:" event/type]
+    net-log ["=== RH Client event:" event/type]
     tcp-port: event/port
     switch/default event/type [
         error [
-            print "error event received"
+            net-log "error event received"
             tcp-port/spec/port-state: 'error
             true
         ]
@@ -80,12 +81,12 @@ read-awake-handler: func [event /local tcp-port] [
         ]
         connect [
             tcp-port/spec/port-state: 'ready
-            print "reading from port"
+            net-log "reading from port"
             read tcp-port
             false
         ]
         read [
-            print ["^\Read Handler read:" length tcp-port/data]
+            net-log ["^\Read Handler read:" length tcp-port/data]
             tcp-port/spec/data: copy tcp-port/data
             clear tcp-port/data
             true
@@ -95,7 +96,7 @@ read-awake-handler: func [event /local tcp-port] [
             false
         ]
         close [
-            print "closed on us!"
+            net-log "closed on us!"
             tcp-port/spec/port-state: _
             close tcp-port
             true
@@ -104,30 +105,30 @@ read-awake-handler: func [event /local tcp-port] [
 ]    
 
 write-awake-handler: func [event /local tcp-port] [
-    print ["=== WH Client event:" event/type]
+    net-log ["=== WH Client event:" event/type]
     tcp-port: event/port
     switch/default event/type [
         error [
-            print "error event received"
+            net-log "error event received"
             tcp-port/spec/port-state: 'error
             true
         ]
         lookup [
             open tcp-port
-            print "tcp-port opened in lookup"
+            net-log "tcp-port opened in lookup"
             false
         ]
         connect [
-            print "connected to tcp-port in write handler"
+            net-log "connected to tcp-port in write handler"
             tcp-port/spec/port-state: 'ready
-            print/only "Writing TCP port locals: "
-            probe to string! tcp-port/locals
+            net-log "Writing TCP port locals: "
+            net-log to string! tcp-port/locals
             write tcp-port tcp-port/locals
             ; do we ever get here since the wrote event takes us elsewhere
             false
         ]
         read [
-            print ["^\Write Handler read:" length tcp-port/data]
+            net-log ["^\Write Handler read:" length tcp-port/data]
             append tcp-port/spec/data copy tcp-port/data
             ; print ["Read: " probe join-of copy/part to string! tcp-port/data 100 "..."]
             clear tcp-port/data
@@ -151,7 +152,7 @@ write-awake-handler: func [event /local tcp-port] [
             false
         ]
         close [
-            print "closed on us!"
+            net-log "closed on us!"
             tcp-port/spec/port-state: _
             close tcp-port
             true
@@ -196,14 +197,14 @@ sync-read: procedure [port [port!]
 ]
 
 check+: procedure [s [string!]][
-    print s
+    net-log/s s
     if not find/part s "+OK" 3 [
         FAIL "Error when checking for +OK"
     ]
 ]
 
 check+space: procedure [s [string!]][
-    print s
+    net-log/s s
     if not find/part s "+ " 2 [
         FAIL "Error when checking for +n&bsp;"
     ]
@@ -307,7 +308,7 @@ sys/make-scheme [
             <local> len
         ][
             if not open? port [
-                print "Port not open, attempting to reopen"
+                net-log "Port not open, attempting to reopen"
                 open port
             ]
             port/state/tcp-port/awake: default [:write-awake-handler]
@@ -327,7 +328,7 @@ sys/make-scheme [
         ]
         read: func [port [port!]] [
             unless open? port [
-                print "Port not open, attempting to reopen"
+                net-log "Port not open, attempting to reopen"
                 open port
             ]
             port/state/tcp-port/awake: default [:read-awake-handler]
@@ -353,6 +354,7 @@ sys/make-scheme [
         ]
         DELETE: func [port [port!] n][
             to string! write-nlb port join-of "DELE " n
+            ; net-log ["You provided a parameter of " n]
         ]
         RSET: func [port [port!]][
             to string! write-nlb port "RSET"
