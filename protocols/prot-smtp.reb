@@ -6,7 +6,7 @@ Rebol [
     rights: BSD
     name: smtp
     type: module
-    version: 0.0.7
+    version: 0.0.8
     file: %prot-smtp.reb
     notes: {
         0.0.1 original tested in 2010
@@ -16,6 +16,8 @@ Rebol [
         0.0.5 Changed to move credentials to the url or port specification
         0.0.6 Fixed some bugs in transferring email greater than the buffer size.
         0.0.7 Fixed to now work with Ren-C
+        0.0.8 Added TLS support.  Note that if your password does not work for gmail then you need to 
+        generate an app password.  See https://support.google.com/accounts/answer/185833
         
         synchronous mode
         write smtp://user:password@smtp.clear.net.nz [ 
@@ -47,7 +49,7 @@ where's my kibble?}]
             host: "smtp.yourisp.com"
             user: "joe"
             pass: "password"
-            ehlo: "FQDN"
+            ehlo: "FQDN" ; if you don't have one, then substitute your IP address
         ] compose [
             from: me@somewhere.com
             to: recipient@other.com
@@ -148,11 +150,14 @@ sync-smtp-handler: func [ event
                             ]
                             find/part response "334 UGFzc3dvcmQ6" 16 [
                                 ; pass being requested
+                                ; net-log client/spec/user
+                                ; net-log client/spec/pass
+
                                 write client to-binary net-log/C join-of enbase client/spec/pass CRLF
                                 client/spec/state: 'PASSWORD
                             ]
                             true [
-                                make-smtp-error join-of "Unknown response in AUTH LOGIN " response                      
+                                make-smtp-error join-of "Unknown response in AUTH LOGIN " response
                             ]
                         ]
 
@@ -170,7 +175,7 @@ sync-smtp-handler: func [ event
                                 client/spec/state: 'PASSWORD
                             ]
                             true [ 
-                                make-smtp-error join-of "Unknown response in AUTH CRAM-MD5 " response                       
+                                make-smtp-error join-of "Unknown response in AUTH CRAM-MD5 " response
                             ]
                         ]
                     ]
@@ -197,19 +202,20 @@ sync-smtp-handler: func [ event
                                 some [
                                     copy line-response to CRLF (
                                         parse line-response [
-"250" 
-["-" | " " ] 
-["AUTH" [" " | "="]
-any
-[ 
-    "CRAM-MD5" (append auth-methods 'cram) |
-    "PLAIN" (append auth-methods 'plain) |
-    "LOGIN" (append auth-methods 'login) |
-    space |
-    some alpha
-] 
-| some alpha thru CRLF ]
-]) crlf
+                                            "250" 
+                                            ["-" | " " ] 
+                                            ["AUTH" [" " | "="]
+                                            any
+                                                [ 
+                                                    "CRAM-MD5" (append auth-methods 'cram) |
+                                                    "PLAIN" (append auth-methods 'plain) |
+                                                    "LOGIN" (append auth-methods 'login) |
+                                                    space |
+                                                    some alpha
+                                                ] 
+                                            | some alpha thru CRLF 
+                                        ]
+                                    ]) crlf
                                 ]
                             ]
                             if find auth-methods 'plain [ client/spec/state: 'PLAIN ]
@@ -225,7 +231,7 @@ any
                                 blank? client/spec/pass
                             ][
                                 client/spec/state: 'FROM
-                                write client to-binary net-log/C rejoin ["MAIL FROM: <" client/spec/email/from ">" CRLF]                       
+                                write client to-binary net-log/C rejoin ["MAIL FROM: <" client/spec/email/from ">" CRLF]
                             ][
                                 switch/default client/spec/state [
                                     PLAIN [
@@ -243,7 +249,7 @@ any
                                         client/spec/state: 'CRAM-MD5    
                                     ]
                                 ][
-                                    make-smtp-error "No supported authentication method"                            
+                                    make-smtp-error "No supported authentication method"
                                 ]
                                 ; authentication is now handled by the main state loop except for Plain
                             ]
@@ -362,16 +368,31 @@ sys/make-scheme [
                 close?: no   ;-- flag for us to decide whether to close the port eg in syn mode
             ]
             ; create the tcp port and set it to port/state/connection
-            port/state/connection: conn: make port! [
-                scheme: 'tcp
-                host: port/spec/host
-                port-id: port/spec/port-id
-                state: 'INIT
-                ref: rejoin [tcp:// host ":" port-id]
-                email: port/spec/email
-                user: port/spec/user
-                pass: port/spec/pass
-                ehlo: any [ port/spec/ehlo "Ren-C User device" ]
+            if blank? system/user/identity/fqdn [make-smtp-error "Need to provide a value for the system/user/identity/fqdn"]
+            either find [465 587 2526] port/spec/port-id [
+                port/state/connection: conn: make port! [
+                    scheme: 'tls
+                    host: port/spec/host
+                    port-id: port/spec/port-id
+                    state: 'INIT
+                    ref: rejoin [tls:// host ":" port-id]
+                    email: port/spec/email
+                    user: port/spec/user
+                    pass: port/spec/pass
+                    ehlo: any [port/spec/ehlo system/user/identity/fqdn]
+                ]
+            ][
+                port/state/connection: conn: make port! [
+                    scheme: 'tcp
+                    host: port/spec/host
+                    port-id: port/spec/port-id
+                    state: 'INIT
+                    ref: rejoin [tcp:// host ":" port-id]
+                    email: port/spec/email
+                    user: port/spec/user
+                    pass: port/spec/pass
+                    ehlo: any [port/spec/ehlo system/user/identity/fqdn]
+                ]
             ]
 
             open conn ;-- open the actual tcp port
