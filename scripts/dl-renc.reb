@@ -23,7 +23,6 @@ contents-rule: [
                 repend files [os filename date]
             ]
         ]
-
     )
 ]
 
@@ -69,14 +68,14 @@ DL-renc: func [][
         ]
     ]
     cnt: 1
-    os-specific: sort/skip/reverse os-specific 2
+    os-specific: sort/skip os-specific 2
     for-each [date filename] os-specific [
         print [++ cnt date filename]
     ]
     forever [
-        response: ask "What filename by number? (1q)"
+        response: ask ajoin ["What filename by number? (" cnt - 1 "q)"]
         if response = "q" [halt]
-        if empty? response [response: 1]
+        if empty? response [response: cnt - 1]
         if not blank? attempt [response: to integer! response][
             if all [
                 response > 0
@@ -91,3 +90,5 @@ DL-renc: func [][
     write to file! file read rejoin [http://metaeducation.s3.amazonaws.com/travis-builds/ default-os "/" file] ()
     print "Done."
 ]
+
+print "use dl-renc to get build by date"
