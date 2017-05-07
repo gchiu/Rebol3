@@ -9,11 +9,13 @@ Rebol [
 import %prot-smtp.reb
 do %prot-send.reb
 
+comment { ; set-net is now included in ren-c
 set-net: procedure [bl [block!]
 ][
     if (length-of bl) <> 6 [fail "Needs all 6 parameters for set-net"]
     set words-of system/user/identity bl
 ]
+}
 
 set-net data: [me@gmail.com "smtp.gmail.com:465" "pop.gmail.com:995" "me@gmail.com" "gmail-application-password" "ihug.net"]
 
