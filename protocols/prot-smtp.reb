@@ -369,7 +369,7 @@ sys/make-scheme [
             ]
             ; create the tcp port and set it to port/state/connection
             if blank? system/user/identity/fqdn [make-smtp-error "Need to provide a value for the system/user/identity/fqdn"]
-            either find [465 587 2526] port/spec/port-id [
+            either find [465 587 2525] port/spec/port-id [
                 port/state/connection: conn: make port! [
                     scheme: 'tls
                     host: port/spec/host
