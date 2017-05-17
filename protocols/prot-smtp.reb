@@ -6,7 +6,7 @@ Rebol [
     rights: BSD
     name: smtp
     type: module
-    version: 0.0.8
+    version: 0.0.9
     file: %prot-smtp.reb
     notes: {
         0.0.1 original tested in 2010
@@ -63,6 +63,14 @@ where's my kibble?}]
         
         p: open smtp://smtp.provider.com
         p/state/connection/awake: :my-async-handler
+
+        port 465 is used for smtps and I think port 587 is used when switching from smtp to smtps ie. STARTTLS
+        18-May-2017 tested successfully with smtp.sendgrid.net
+             TLS ok on port 465 but failed on 587
+             TCP ok on port 2525
+
+             Tested successfully with smtp.gmail.com using TLS port 465
+             Failed with smtp.sparkpostmail.com on 465, and 587
     }
 ]
 
@@ -86,7 +94,7 @@ make-smtp-error: func [
 alpha: charset [#"a" - #"z" #"A" - #"Z"]
 
 sync-smtp-handler: func [ event 
-        /local client response state code line-response auth-key auth-methods ptr
+        /local client response state code line-response auth-key auth-methods ptr err
     ] [
         line-response: _
         auth-methods: copy []
@@ -100,22 +108,37 @@ sync-smtp-handler: func [ event
                 return true
             ]
             lookup [
-                net-log "DNS lookup"
-                open client
-                false
+                net-log "lookup event - now opening remote port"
+                either error? err: trap [
+                    open client                
+                ][
+                    make-smtp-error "timeout on opeing port in sync-smtp-handler"
+                ][
+                    false
+                ]
             ]
             connect [
-                net-log "connected, sending EHLO"
                 client/spec/state: 'EHLO
+                net-log "reading remote in CONNECT event"
                 read client
                 false
             ]
 
             read [
                 net-log/S response: enline to-string client/data
+                net-log join-of "client state: " client/spec/state
                 code: copy/part response 3
-                if code = "501" [
-                    make-smtp-error join-of "Unknown server error " response
+                switch code [
+                    "501" [
+                        make-smtp-error join-of "Unknown server error " response
+                    ]
+                    "250" [
+                        if find [EHLO INIT] client/spec/state [
+                            client/spec/state: 'AUTH
+                            net-log "switching state to 'AUTH as code 250 received"
+                            net-log join-of "client state: " client/spec/state
+                        ]
+                    ]
                 ]
                 switch/default client/spec/state [
                     INIT [
@@ -189,7 +212,20 @@ sync-smtp-handler: func [ event
                             make-smtp-error "Failed authentication"
                         ]
                     ]
-                                        
+                            
+
+comment {
+S: 250-smtp.sendgrid.net
+250-8BITMIME
+250-PIPELINING
+250-SIZE 31457280
+250-AUTH PLAIN LOGIN
+250 AUTH=PLAIN LOGIN
+
+}
+
+
+
                     AUTH [
                         if find/part response "220 " 4 [
                             ; wants me to send EHLO
@@ -198,9 +234,11 @@ sync-smtp-handler: func [ event
                         ; should get a long string with all the options including authentication methods.
                         if code = "250" [
                             clear head auth-methods
+                            net-log "parsing the received response"
                             parse response [
                                 some [
                                     copy line-response to CRLF (
+                                        net-log line-response
                                         parse line-response [
                                             "250" 
                                             ["-" | " " ] 
@@ -221,6 +259,7 @@ sync-smtp-handler: func [ event
                             if find auth-methods 'plain [ client/spec/state: 'PLAIN ]
                             if find auth-methods 'login [ client/spec/state: 'LOGIN ]
                             if find auth-methods 'cram [ client/spec/state: 'CRAM-MD5 ]
+                            net-log join-of "Authentication methods: " mold auth-methods
                         ]
 
                         ; should now have switched from AUTH to a type of authentication
@@ -369,7 +408,7 @@ sys/make-scheme [
             ]
             ; create the tcp port and set it to port/state/connection
             if blank? system/user/identity/fqdn [make-smtp-error "Need to provide a value for the system/user/identity/fqdn"]
-            either find [465 587 2525] port/spec/port-id [
+            either find [465 587] port/spec/port-id [
                 port/state/connection: conn: make port! [
                     scheme: 'tls
                     host: port/spec/host
@@ -394,6 +433,7 @@ sys/make-scheme [
                     ehlo: any [port/spec/ehlo system/user/identity/fqdn]
                 ]
             ]
+            net-log join-of "Opening .. " port/state/connection/spec/ref
 
             open conn ;-- open the actual tcp port
             
