@@ -6,13 +6,15 @@ Rebol [
         database inside it.  Then it queries to make sure it can get the
         data back out.
     }
-    version: 0.0.4
+    version: 0.0.5
     date: 4-June-2017
     notes: { add a format-sql function
-             Firebird: avoid using reserved names for tables
+             avoid using reserved names for tables
              don't drop tables so we can examine in another DB browser
              use a insert-sql function to debug
-             DB2: added format-sql/blob for DB2 and date formatting string
+             added format-sql/blob for DB2 and date formatting string
+             DB2 - doesn't have unsigned numbers
+             BLOBS binaries need to be cast using HEX when selecting data
     }
 ]
 
@@ -23,7 +25,7 @@ success: copy []
 tables: [
     bit "CHAR(1)" [#[TRUE] #[FALSE] #[TRUE]]
 
-    ; tinyint_s "SMALLINT" [-128 -10 0 10 127]
+    tinyint_s "SMALLINT" [-128 -10 0 10 127]
     ; tinyint_u "SMALLINT UNSIGNED" [0 10 20 30 255]
     smallint_s "SMALLINT" [-32768 -10 0 10 32767]
     ; smallint_u "SMALLINT UNSIGNED" [0 10 20 30 65535]
@@ -37,7 +39,7 @@ tables: [
     ;
     ; bigint_u "BIGINT UNSIGNED" [0 10 20 30 9223372036854775807]
 
-    ; real "DOUBLE" [-3.4 -1.2 0.0 5.6 7.8]
+    real "DOUBLE" [-3.4 -1.2 0.0 5.6 7.8]
     double "DOUBLE PRECISION" [-3.4 -1.2 0.0 5.6 7.8]
     float "FLOAT(20)" [-3.4 -1.2 0.0 5.6 7.8]
     numeric "NUMERIC(18,2)" [-3.4 -1.2 0.0 5.6 7.8]
@@ -185,8 +187,14 @@ for-each [name sqltype content] tables [
     ; Query the rows and make sure the values that come back are the same
     ;
 
-    insert-sql unspaced [
-        {SELECT "SQLVALUE" FROM "} join-of "REB" uppercase form name {"}
+    either name = 'blob [
+        insert-sql unspaced [
+            {SELECT HEX(SQLVALUE) FROM "} join-of "REB" uppercase form name {"}
+        ]
+    ][
+        insert-sql unspaced [
+            {SELECT "SQLVALUE" FROM "} join-of "REB" uppercase form name {"}
+        ]
     ]
     rows: copy statement
     ; rows: copy []
