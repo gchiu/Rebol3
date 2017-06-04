@@ -6,7 +6,7 @@ Rebol [
         database inside it.  Then it queries to make sure it can get the
         data back out.
     }
-    version: 0.0.5
+    version: 0.0.6
     date: 4-June-2017
     notes: { add a format-sql function
              avoid using reserved names for tables
@@ -14,7 +14,7 @@ Rebol [
              use a insert-sql function to debug
              added format-sql/blob for DB2 and date formatting string
              DB2 - doesn't have unsigned numbers
-             BLOBS binaries need to be cast using HEX when selecting data
+             binaries need to be cast using HEX when selecting data
     }
 ]
 
@@ -187,7 +187,7 @@ for-each [name sqltype content] tables [
     ; Query the rows and make sure the values that come back are the same
     ;
 
-    either name = 'blob [
+    either find [blob varbinary binary] name [
         insert-sql unspaced [
             {SELECT HEX(SQLVALUE) FROM "} join-of "REB" uppercase form name {"}
         ]
