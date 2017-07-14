@@ -4,7 +4,7 @@ Rebol [
     date: 14-July-2017
     notes: {api documentation obtained from https://github.com/madleech/FlickElectricApi}
     ; user details which do change!
-    username: youemailwhateveritisgoeshere@gmail.com
+    username: the-email-that-you-use-for-flickgoeshere@gmail.com
     password: "your-flick-password-here"
     waitmins: 1 ; maybe 30 minutes is better
 ]
