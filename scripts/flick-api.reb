@@ -4,7 +4,7 @@ Rebol [
     date: 14-July-2017
     notes: {api documentation obtained from https://github.com/madleech/FlickElectricApi}
     ; user details which do change!
-    username: the-email-that-you-use-for-flickgoeshere@gmail.com
+    username: the-email-that-you-use-for-flick-goes-here@gmail.com
     password: "your-flick-password-here"
     waitmins: 1 ; maybe 30 minutes is better
 ]
@@ -22,8 +22,8 @@ client_id:  "le37iwi3qctbduh39fvnpevt1m2uuvz"
 client_secret: "ignwy9ztnst3azswww66y9vd9zt6qnt"
 
 ; user details which do change, and maintained in the script header
-username: system/script/header/username ;"compkarori@gmail.com"
-password: system/script/header/password ;"l59H7uAKyK"
+username: system/script/header/username 
+password: system/script/header/password
 
 ; net-trace on
 
