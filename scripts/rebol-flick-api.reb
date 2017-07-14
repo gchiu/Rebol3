@@ -2,11 +2,20 @@ Rebol [
     file: %rebol-flick-api.reb
     author: "Graham"
     date: 14-July-2017
-    notes: {api documentation obtained from https://github.com/madleech/FlickElectricApi}
+    notes: {api documentation obtained from https://github.com/madleech/FlickElectricApi
+    
+    1. Download a rebol interpreter from here http://metaeducation.s3.amazonaws.com/index.html
+    2. Rename it to r3 (or r3.exe if using windows )
+    3. On linux - chmod +x ./r3
+    4. Download this script, use the raw view https://raw.githubusercontent.com/gchiu/Rebol3/master/scripts/rebol-flick-api.reb
+    5. Use an editor to change the values in lines 16-18
+    6. From a shell, run the script like this c:\users\path\to\download\r3 rebol-flick-api.reb
+
+    }
     ; user details which do change!
     username: the-email-you-use-with-flick-goes-here@somewhere.com
     password: "your-password-goes-here"
-    waitmins: 1 ; maybe 30 is better
+    waitmins: 10 ; maybe 30 is better
 ]
 
 import <json>
