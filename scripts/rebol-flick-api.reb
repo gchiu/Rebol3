@@ -109,6 +109,10 @@ display-current-price: does [
                     "per"
                     price/needle/per
                 ]
+                ; and if you want to save the data to an influxDb, here's sample code, wrapping it in an attempt in case the Db server isn't on
+                ; attempt [
+                ;    write http://127.0.0.1:8086/write?db=FlickUsage compose [POST (join-of "spotRate,location=home spotNow=" price/needle/price)]
+                ; ]
             ][
                 ; can't get price
                 probe err
