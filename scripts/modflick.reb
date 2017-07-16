@@ -15,6 +15,7 @@ Rebol [
 		price-type-from   ; price [map!] => string!
 		price-starts-at   ; price [map!] => date!
 		price-ends-at     ; price [map!] => date!
+		price-at-now:	  ; price [map!] => date!
 	]
 	History: [
         16-July-2017 "first pass at moving code to a module"
@@ -115,6 +116,12 @@ price-ends-at: function [
 	jsdate2reboldate price/needle/end_at
 ]
 
+price-at-now: function [
+	{shortcut to return the end time of price}
+	price [map!]
+][
+	jsdate2reboldate price/needle/now
+]
 comment {
 ; sample JSON map! returned by get-current-price after turned into a Rebol map!
 
