@@ -1,10 +1,11 @@
 Rebol [
+    title: "Flick Spot Price"
     file: %rebol-flick-api.reb
     author: "Graham"
     date: 14-July-2017
-    version: 0.1.1
+    version: 0.1.3
     notes: {api documentation obtained from https://github.com/madleech/FlickElectricApi
-    NB: Help at https://forum.rebol.info/t/flickelectric-utilities/207
+    HELP at https://forum.rebol.info/t/flickelectric-utilities/207    
     
     1. Download a rebol interpreter from here http://metaeducation.s3.amazonaws.com/index.html
     2. Rename it to r3 (or r3.exe if using windows )
@@ -21,16 +22,10 @@ Rebol [
     save2Db?: #[false] ; #[true]
 ]
 
-import <json>
-import <webform>
-process: import 'process
+import <modflick>
 
 save2Db?: system/script/header/save2Db?
 waitperiod: system/script/header/waitmins
-
-; API endpoints
-get-jwt: https://api.flick.energy/identity/oauth/token
-get-price: https://api.flick.energy/customer/mobile_provider/price
 
 form-vars: make object! [
     ; API vars - cient_id and secret are the OAUTH credentials for the Android client, and don't change
@@ -41,79 +36,34 @@ form-vars: make object! [
     password: system/script/header/password
 ]
 
-; net-trace on
-
-jsdate2reboldate: function [
-    {convert JS zulu date to rebol local date value}
-    jsdate [string!]
-][
-    replace jsdate "T" "/"
-    replace jsdate "Z" ""
-    d: now/zone + load jsdate
-    d/zone: now/zone
-    d
-]
-
-blank-flick-map: make map! compose [
-    access_token _
-    expires_in (now - 1)
-    id_token _
-    token_type "bearer"
-]
-
-flick-map: either exists? %flick-map.reb [
-    load %flick-map.reb
-][
-    blank-flick-map
-]
-
-; probe flick-map
-
-Get-flick-map: func [ /local result err][
-    if error? err: trap [
-        result: load-json to string! write get-jwt compose [POST (to-webform form-vars)]
-        result/expires_in: now + to time! result/expires_in
-        save/all %flick-map.reb result
-    ][
-        print "Error obtaining map"
-        probe err
-        return blank-flick-map
-    ]
-    result
-]
-
-Get-current-price: function [
-    {reads price data which is returned as a JSON string}
-    flick-map [map!]
-][
-    write get-price compose [
-        GET [Authorization: (join-of "Bearer " flick-map/id_token)]
-    ]
-]
+flick-map: make object! [expires_in: now - 1]
 
 display-current-price: does [
     forever [
         if flick-map/expires_in < now [
-            print "Fetching id_token"
-            flick-map: Get-flick-map
+            print "Loading id_token"
+            flick-map: Get-flick-map form-vars
         ]
         if flick-map/expires_in > now [
             ; current id_token still valid
             if error? err: trap [ ; trap the network read
                 price: load-json to string! Get-current-price flick-map
+                time-at: price-at-now price
+                time-until: price-ends-at price
                 print/only spaced ["At"
-                    jsdate2reboldate price/needle/now ; convert from zulu to local time
-                    price/needle/charge_methods/2 
-                    price/needle/price
-                    price/needle/unit_code
-                    "per"
-                    price/needle/per
+                    time-at/time
+                    price-from price "cents"
+                    price-type-from price
+                    "valid until"
+                    time-until/time 
+                    "in about"
+                    round divide to-integer difference time-until now 60 "mins"
                 ]
                 ; and if you want to save the data to an influxDb, here's sample code, wrapping it in an attempt in case the Db server isn't on
                 if save2Db? [
                     print "trying to save db data"
                     if error? err: trap [
-                        write http://127.0.0.1:8086/write?db=FlickUsage compose [POST (join-of "spotRate,location=home spotNow=" price/needle/price)]
+                        write http://127.0.0.1:8086/write?db=FlickUsage compose [POST (join-of "spotRate,location=home spotNow=" price-from price)]
                     ][
                         print "*** Unable to save to DB"
                         probe err
@@ -126,7 +76,8 @@ display-current-price: does [
             ]
         ]
         print spaced ["; sleeping for" waitperiod "mins"]
-        process/sleep 60 * waitperiod ; Control-C will break out of the script at the end of the 10 min period
+        ; process/sleep 60 * waitperiod ; not using this as can't break out using Control-C
+        wait/only 60 * waitperiod
     ]
 ]
 
