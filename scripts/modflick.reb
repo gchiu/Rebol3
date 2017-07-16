@@ -1,27 +1,27 @@
 Rebol [
-	Title: "Flick API Utilities"
-	Author: "Graham Chiu"
-	Date: 15-Jul-2017
-	Home: https://forum.rebol.info/t/flickelectric-utilities/207
-	File: %modflick.reb
-	Version: 0.1.0
-	Purpose: "Implement Flick API"
-	Type: module
-	Name: modflick
-	Exports: [
-		Get-flick-map     ; object! => map!
-		Get-current-price ; flick-map [map!] => price [map!]
-		price-from        ; price [map!] => decimal!
-		price-type-from   ; price [map!] => string!
-		price-starts-at   ; price [map!] => date!
-		price-ends-at     ; price [map!] => date!
-		price-at-now:	  ; price [map!] => date!
-	]
-	History: [
+    Title: "Flick API Utilities"
+    Author: "Graham Chiu"
+    Date: 15-Jul-2017
+    Home: https://forum.rebol.info/t/flickelectric-utilities/207
+    File: %modflick.reb
+    Version: 0.1.0
+    Purpose: "Implement Flick API"
+    Type: module
+    Name: modflick
+    Exports: [
+        Get-flick-map     ; object! => map!
+        Get-current-price ; flick-map [map!] => price [map!]
+        price-from        ; price [map!] => decimal!
+        price-type-from   ; price [map!] => string!
+        price-starts-at   ; price [map!] => date!
+        price-ends-at     ; price [map!] => date!
+    ]
+    History: [
         16-July-2017 "first pass at moving code to a module"
-	]
-	Example: [
-	]
+    ]
+    Example: [
+        https://github.com/gchiu/Rebol3/blob/master/scripts/rebol-flick-api.reb
+    ]
 ]
 
 webform: import <webform>
@@ -59,8 +59,8 @@ flick-map: either exists? %flick-map.reb [
 ; probe flick-map
 
 Get-flick-map: function [
-	{returns a map! of flick credentials when passed an object containing password etc}
-	form-vars [object!]
+    {returns a map! of flick credentials when passed an object containing password etc}
+    form-vars [object!]
 ][
     fm: flick-map ; load saved map if it exists
     either fm/expires_in < now [
@@ -89,39 +89,33 @@ Get-current-price: function [
 ]
 
 price-from: function [
-	{shortcut to return value from map, returns decimal value}
-	price [map!]
+    {shortcut to return value from map, returns decimal value}
+    price [map!]
 ][
-	to decimal! price/needle/price
+    to decimal! price/needle/price
 ]
 
 price-type-from: function [
-	{shortcut to return the price type as string}
-	price [map!]
+    {shortcut to return the price type as string}
+    price [map!]
 ][
-	spaced [price/needle/charge_methods/2 "per" price/needle/per]
+    spaced [price/needle/charge_methods/2 "per" price/needle/per]
 ]
 
 price-starts-at: function [
-	{shortcut to return the start time of price}
-	price [map!]
+    {shortcut to return the start time of price}
+    price [map!]
 ][
-	jsdate2reboldate price/needle/start_at
+    jsdate2reboldate price/needle/start_at
 ]
 
 price-ends-at: function [
-	{shortcut to return the end time of price}
-	price [map!]
+    {shortcut to return the end time of price}
+    price [map!]
 ][
-	jsdate2reboldate price/needle/end_at
+    jsdate2reboldate price/needle/end_at
 ]
 
-price-at-now: function [
-	{shortcut to return the end time of price}
-	price [map!]
-][
-	jsdate2reboldate price/needle/now
-]
 comment {
 ; sample JSON map! returned by get-current-price after turned into a Rebol map!
 
@@ -162,45 +156,3 @@ make map! [
     ]
 ]
 }
-
-display-current-price: does [
-    forever [
-        if flick-map/expires_in < now [
-            print "Fetching id_token"
-            flick-map: Get-flick-map
-        ]
-        if flick-map/expires_in > now [
-            ; current id_token still valid
-            if error? err: trap [ ; trap the network read
-                price: load-json to string! Get-current-price flick-map
-                print/only spaced ["At"
-                    jsdate2reboldate price/needle/now ; convert from zulu to local time
-                    price/needle/charge_methods/2 
-                    price/needle/price
-                    price/needle/unit_code
-                    "per"
-                    price/needle/per
-                ]
-                ; and if you want to save the data to an influxDb, here's sample code, wrapping it in an attempt in case the Db server isn't on
-                if save2Db? [
-                    print "trying to save db data"
-                    if error? err: trap [
-                        write http://127.0.0.1:8086/write?db=FlickUsage compose [POST (join-of "spotRate,location=home spotNow=" price/needle/price)]
-                    ][
-                        print "*** Unable to save to DB"
-                        probe err
-                    ]
-                ]
-            ][
-                ; can't get price
-                print "*** Unable to fetch pricing data"
-                probe err
-            ]
-        ]
-        print spaced ["; sleeping for" waitperiod "mins"]
-        ; process/sleep 60 * waitperiod ; not using this as can't break out using Control-C
-        wait/only 60 * waitperiod
-    ]
-]
-
-; display-current-price
