@@ -22,16 +22,10 @@ Rebol [
 flick-dashboard: https://myflick.flickelectric.co.nz/dashboard?_ga=2.251743488.820465368.1500584817-1588233765.1497340737
 
 flick-root: https://myflick.flickelectric.co.nz/
-flick-signin: join-of flick-root "users/sign_in"
 flick-daily: join-of flick-root "dashboard/day/"
 
 username: system/script/header/username 
 password: system/script/header/password
-
-net-trace off
-??: :dump
-
-; import %prot-http-test.reb
 
 format-date: func [{formats date as yyyy-mm-dd}
 	date [date!]
@@ -69,7 +63,6 @@ find-all-cookies: function [
 read-http: function [{Read a page, capture cookies, send cookies and follow redirects}
     url [url!]
 ][
-    cnt: 1
     forever [
         site: sys/decode-url url
         if find cookie-jar site/host [
