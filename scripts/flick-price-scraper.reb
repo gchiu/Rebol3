@@ -25,8 +25,6 @@ flick-daily: join-of flick-root "dashboard/day/"
 username: system/script/header/username 
 password: system/script/header/password
 
-; import %prot-http-test.reb
-
 format-date: func [
     {formats date as yyyy-mm-dd}
     date [date!]
@@ -226,7 +224,7 @@ save-csv-data: procedure [
     ]
 ]
 
-;; ======example of capturing all the daily use from 1-July-2017 - 20-July-2017
+;; ====== example of capturing all the daily use from 1-July-2017 - 31-July-2017
 
 ; authenticate and grab all the necessary cookies
 login-to-flick flick-dashboard
@@ -239,7 +237,7 @@ start_date: 1-July-2017
 end_date: 31-July-2017
 
 ; step thru each date until you read the end_date
-while [start_date < end_date][
+while [start_date <= end_date][
     print ["Collecting data for" start_date]
     save-csv-data/delimiter ++ start_date ";"
 ]
