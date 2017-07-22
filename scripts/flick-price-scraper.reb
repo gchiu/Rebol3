@@ -16,6 +16,7 @@ Rebol [
     password: "your-flick-password-goes-here"
 ]
 
+
 ; urls for flick
 flick-dashboard: https://myflick.flickelectric.co.nz/dashboard?_ga=2.251743488.820465368.1500584817-1588233765.1497340737
 
@@ -27,10 +28,11 @@ password: system/script/header/password
 
 ; import %prot-http-test.reb
 
-format-date: func [{formats date as yyyy-mm-dd}
+format-date: func [
+    {formats date as yyyy-mm-dd}
     date [date!]
 ][
-    delimit [ date/year next form 100 + date/month next form 100 + date/day ] "-"
+    delimit [date/year next form 100 + date/month next form 100 + date/day] "-"
 ]
 
 cookie-jar: copy make map! []
@@ -60,36 +62,37 @@ find-all-cookies: function [
     cookies
 ]
 
-read-http: function [{Read a page, capture cookies, send cookies and follow redirects}
+read-http: function [
+    {Read a page, capture cookies, send cookies and follow redirects}
     url [url!]
 ][
-    cnt: 1
     forever [
         site: sys/decode-url url
         if find cookie-jar site/host [
             cookies: cookie-jar/(site/host)
         ]
         cookies: default [""]
-        either empty? cookies [
-            result.o: trap [write url [headers no-redirect GET []]]
+        result.o: either empty? cookies [
+            trap [write url [headers no-redirect GET []]]
         ][
-            result.o: trap [write url compose/deep [headers no-redirect GET [cookie: (cookies)]]]
+            trap [write url compose/deep [headers no-redirect GET [cookie: (cookies)]]]
         ]
         ; got the headers I hope
         headers: result.o/spec/debug/headers
         ; save the cookies
-        if find headers 'set-cookie [
+        if all [
+            find? headers 'set-cookie 
             cookies: find-all-cookies headers/set-cookie
-            if not empty? cookies [
-                either find? cookie-jar site/host [
-                    repend cookie-jar [lock site/host cookies]
-                ][
-                    lock site/host
-                    cookie-jar/(site/host): cookies
-                ]
+            not empty? cookies
+        ][
+            either find? cookie-jar site/host [
+                repend cookie-jar [lock site/host cookies]
+            ][
+                lock site/host
+                cookie-jar/(site/host): cookies
             ]
         ]
-        if not find headers 'location [
+        if not find? headers 'location [
             break
         ]
         ; get the redirect
@@ -104,6 +107,7 @@ read-http: function [{Read a page, capture cookies, send cookies and follow redi
 
 ; flick-dashboard
 login-to-flick: function [
+    {Login to flickelectric's website and capture the necessary cookies to our cookie-jar}
     url [url!]
 ][
     ; keep reading and following redirects until we reach the login page
@@ -134,8 +138,8 @@ login-to-flick: function [
                                 "user[email]" = form tmp1 [keep username]
                                 "user[password]" = form tmp1 [keep password]
                                 "user[remember_me]" = form tmp1 [keep 0]
-                                true [keep tmp2]
                             ]
+                            else [keep tmp2]
                         ) :hit
                     ]
                     skip [and block! into rule | skip]
@@ -169,7 +173,7 @@ login-to-flick: function [
     ; grab the new cookies from id.flickelectric
     site: sys/decode-url post-url
 
-    if find headers 'set-cookie [
+    if find? headers 'set-cookie [
         cookies: find-all-cookies headers/set-cookie
         if not empty? cookies [
             either find? cookie-jar site/host [
@@ -203,6 +207,7 @@ save-csv-data: procedure [
         ; dump rebol-values
         time: 0:00:00 - 00:30:00
         data: copy []
+        cnt: 1
         loop 48 [
             repend data [
                 time: time + 00:30:00
@@ -226,7 +231,7 @@ save-csv-data: procedure [
                 append csv delimit reduce [data/1 data/2 data/3 daily: round/to (data/2 * data/3) .01 |] char 
                 daily-total: daily-total + daily
             ]
-            write to file! unspaced [d %.csv] csv ()
+            write to file! unspaced [d %.csv] csv
             print ["Daily total:" to money! round/to daily-total / 100 .01]
         ][ print ["No data for" date]]
     ]
@@ -242,7 +247,7 @@ cd %flick/
 
 ; let's grab the data for what we have of July 2017
 start_date: 1-July-2017
-end_date: 21-July-2017
+end_date: 31-July-2017
 
 ; step thru each date until you read the end_date
 while [start_date < end_date][
