@@ -4,7 +4,7 @@ Rebol [
     author: "Graham Chiu"
     date: [6-Sep-2015 22-July-2017]
     purpose: {grab the flick electric power charges for a particular day}
-    version: 0.1.0
+    version: 0.1.1
     needs: [
         <json>
         <webform>
@@ -15,7 +15,6 @@ Rebol [
     username: your-flick-login-email@goes-here.com
     password: "your-flick-password-goes-here"
 ]
-
 
 ; urls for flick
 flick-dashboard: https://myflick.flickelectric.co.nz/dashboard?_ga=2.251743488.820465368.1500584817-1588233765.1497340737
@@ -36,6 +35,24 @@ format-date: func [
 ]
 
 cookie-jar: copy make map! []
+
+update-cookie-jar: procedure [
+    {adds cookies to cookie-jar or updates if present}
+    headers [object!] site [block!]
+][
+    if all [
+        find headers 'set-cookie 
+        cookies: find-all-cookies headers/set-cookie
+        not empty? cookies
+    ][
+        either find cookie-jar site/host [
+            repend cookie-jar [lock site/host cookies]
+        ][
+            lock site/host
+            cookie-jar/(site/host): cookies
+        ]
+    ]
+]        
 
 find-all-cookies: function [
     {given a cookie string or block, all cookies are returned}
@@ -77,22 +94,11 @@ read-http: function [
         ][
             trap [write url compose/deep [headers no-redirect GET [cookie: (cookies)]]]
         ]
-        ; got the headers I hope
-        headers: result.o/spec/debug/headers
-        ; save the cookies
-        if all [
-            find? headers 'set-cookie 
-            cookies: find-all-cookies headers/set-cookie
-            not empty? cookies
-        ][
-            either find? cookie-jar site/host [
-                repend cookie-jar [lock site/host cookies]
-            ][
-                lock site/host
-                cookie-jar/(site/host): cookies
-            ]
-        ]
-        if not find? headers 'location [
+        ; got the headers I hope so save the cookies
+        update-cookie-jar headers: result.o/spec/debug/headers site
+
+        ; no redirect so let's quit the forever loop
+        if not find headers 'location [
             break
         ]
         ; get the redirect
@@ -138,8 +144,7 @@ login-to-flick: function [
                                 "user[email]" = form tmp1 [keep username]
                                 "user[password]" = form tmp1 [keep password]
                                 "user[remember_me]" = form tmp1 [keep 0]
-                            ]
-                            else [keep tmp2]
+                            ] else [keep tmp2]
                         ) :hit
                     ]
                     skip [and block! into rule | skip]
@@ -172,19 +177,7 @@ login-to-flick: function [
 
     ; grab the new cookies from id.flickelectric
     site: sys/decode-url post-url
-
-    if find? headers 'set-cookie [
-        cookies: find-all-cookies headers/set-cookie
-        if not empty? cookies [
-            either find? cookie-jar site/host [
-                repend cookie-jar [lock site/host cookies]
-            ][
-                lock site/host
-                cookie-jar/(site/host): cookies
-            ]
-        ]
-    ]
-
+    update-cookie-jar headers site
     dump cookie-jar
     headers
 ]
@@ -192,9 +185,8 @@ login-to-flick: function [
 save-csv-data: procedure [
     {Given a date for which we have data, save it as a CSV file %date.csv.  Uses "," unless specified otherwise}
     date [date!]
-    /delimiter char 
+    /delimiter char (",")
 ][
-    if not delimiter [char: ","]
     daily-total: 0
 
     ; format to string needed for the flick url
@@ -207,20 +199,17 @@ save-csv-data: procedure [
         ; dump rebol-values
         time: 0:00:00 - 00:30:00
         data: copy []
-        cnt: 1
+        i: 1
         loop 48 [
             repend data [
                 time: time + 00:30:00
-                rebol-values/prices/:cnt
-                rebol-values/consumption/:cnt
+                rebol-values/prices/:i
+                rebol-values/consumption/:i
             ]
             ; time: time + 00:30:00
-            ++ cnt
+            ++ i
         ]
-        d: rebol-values/start_date
-        replace d "T" "/"
-        d: load d
-        d: d/date
+        d: rebol-values/start_date | replace d "T" "/" | d: load d | d: d/date
         ; if the date for the data is not returned, then we're too far in the future and so flick returns
         ; the last date it has data
         either d = date [
