@@ -4,17 +4,21 @@ Rebol [
     author: "Graham Chiu"
     date: [6-Sep-2015 22-July-2017]
     purpose: {grab the flick electric power charges for a particular day}
-    version: 0.1.1
+    version: 0.1.2
     needs: [
         <json>
         <webform>
         <xml>
     ]
     help: https://forum.rebol.info/t/flickelectric-utilities/207/2
-    notes: {usage example is at the end of this file}
+    notes: {usage example is at the end of this file
+        0.1.2 23-July-2017 changed syntax to use build 22-Jul-2017/23:35:08.  ++ now takes a value and not a word
+    }
     username: your-flick-login-email@goes-here.com
     password: "your-flick-password-goes-here"
 ]
+
+trap/with [c: 1 c: ++ 1][fail "This needs a later version of rebol3.  Use `upgrade`"]
 
 ; urls for flick
 flick-dashboard: https://myflick.flickelectric.co.nz/dashboard?_ga=2.251743488.820465368.1500584817-1588233765.1497340737
@@ -24,6 +28,8 @@ flick-daily: join-of flick-root "dashboard/day/"
 
 username: system/script/header/username 
 password: system/script/header/password
+
+; import %prot-http-test.reb
 
 format-date: func [
     {formats date as yyyy-mm-dd}
@@ -205,7 +211,7 @@ save-csv-data: procedure [
                 rebol-values/consumption/:i
             ]
             ; time: time + 00:30:00
-            ++ i
+            i: ++ 1
         ]
         d: rebol-values/start_date | replace d "T" "/" | d: load d | d: d/date
         ; if the date for the data is not returned, then we're too far in the future and so flick returns
@@ -224,7 +230,7 @@ save-csv-data: procedure [
     ]
 ]
 
-;; ====== example of capturing all the daily use from 1-July-2017 - 31-July-2017
+;; ======example of capturing all the daily use from 1-July-2017 - 20-July-2017
 
 ; authenticate and grab all the necessary cookies
 login-to-flick flick-dashboard
@@ -239,5 +245,5 @@ end_date: 31-July-2017
 ; step thru each date until you read the end_date
 while [start_date <= end_date][
     print ["Collecting data for" start_date]
-    save-csv-data/delimiter ++ start_date ";"
+    save-csv-data/delimiter start_date: ++ 1 ";"
 ]
