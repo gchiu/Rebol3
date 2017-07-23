@@ -4,7 +4,7 @@ Rebol [
     author: "Graham Chiu"
     date: [6-Sep-2015 22-July-2017]
     purpose: {grab the flick electric power charges for a particular day}
-    version: 0.1.2
+    version: 0.1.3
     needs: [
         <json>
         <webform>
@@ -28,8 +28,6 @@ flick-daily: join-of flick-root "dashboard/day/"
 
 username: system/script/header/username 
 password: system/script/header/password
-
-; import %prot-http-test.reb
 
 format-date: func [
     {formats date as yyyy-mm-dd}
@@ -63,11 +61,7 @@ find-all-cookies: function [
     cookie-string [string! block!]
 ][
     cookies: copy []
-    if string? cookie-string [
-        tmp: copy []
-        append tmp cookie-string
-        cookie-string: tmp
-    ]
+    if string? cookie-string [cookie-string: append copy [] cookie-string]
     for-each cookie cookie-string [
         for-each element split cookie ";" [
             trim/head/tail element
