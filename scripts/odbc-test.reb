@@ -105,14 +105,15 @@ clear success
 for-each [name sqltype content] tables [
     ;
     ; Drop table if it exists
-comment {    
+; comment {    
     trap [
+        print ["dropping table" uppercase join-of "REB" form name]
         insert statement 
         debug unspaced [
-            {DROP TABLE "} uppercase form name {"}
+            {DROP TABLE "} uppercase join-of "REB" form name {"}
         ]
     ]
-}
+;}
 
     ; Create table, each one of which has a single field "value" as the
     ; primary key, of the named type.
