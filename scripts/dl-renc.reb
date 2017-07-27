@@ -3,8 +3,10 @@ Rebol [
     date: 6-May-2017
     author: "Graham"
     purpose: {allow download of a specific build from S3}
-    version: 0.1.1
-    notes: {24-July-2017 update to use new ++ syntax}
+    version: 0.1.2
+    notes: {24-July-2017 update to use new ++ syntax
+        27-July-2017 clear blocks before downloading list to stop duplicates, and fixes for ++ which now returns the value after ++
+    }
 ]
 
 trap/with [c: 1 c: ++ 1][fail "This needs a later version of rebol3.  Use `upgrade`"]
@@ -31,6 +33,7 @@ contents-rule: [
 ]
 
 DL-renc: func [][
+    for-each block [oses builds dates files][clear get block]
     xml: to string! read http://metaeducation.s3.amazonaws.com  
     parse xml [some contents-rule]
     dates: sort unique dates
@@ -40,7 +43,7 @@ DL-renc: func [][
     os-specific: copy []
 
     default-os: find/tail find/tail form rebol/version "." "."
-    count: 1
+    count: 0
     print ["Available OSes: "]
     for-each os oses [print unspaced[count: ++ 1 ": " os]]
     print newline
@@ -57,7 +60,7 @@ DL-renc: func [][
                 if all [
                     attempt [response: to integer! response]
                     response > 0
-                    response < count
+                    response <= count
                 ][
                     default-os: pick oses response
                     break
@@ -71,19 +74,19 @@ DL-renc: func [][
             repend os-specific [date filename]
         ]
     ]
-    count: 1
+    count: 0
     os-specific: sort/skip os-specific 2
     for-each [date filename] os-specific [
         print [count: ++ 1 date filename]
     ]
     forever [
-        response: ask ajoin ["What filename by number? (" count - 1 "q)"]
+        response: ask ajoin ["What filename by number? (" count "q)"]
         if response = "q" [halt]
         if empty? response [response: count - 1]
         if not blank? attempt [response: to integer! response][
             if all [
                 response > 0
-                response < count
+                response <= count
             ][
                 break
             ]
