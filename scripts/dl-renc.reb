@@ -82,7 +82,7 @@ DL-renc: func [][
     forever [
         response: ask ajoin ["What filename by number? (" count "q)"]
         if response = "q" [halt]
-        if empty? response [response: count - 1]
+        if empty? response [response: count]
         if not blank? attempt [response: to integer! response][
             if all [
                 response > 0
