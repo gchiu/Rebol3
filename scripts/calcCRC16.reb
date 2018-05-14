@@ -10,7 +10,7 @@ Rebol [
     name: "Graham"
 ]
 
-INIT_SEED16: #{3692}
+INIT_SEED16: to-integer/unsigned #{3692}
 
 TBL_CRC16: [
     0 4489 8978 12955 17956 22445 25910 29887 35912 40385 44890 48851 51820 56293 59774 63735
@@ -37,13 +37,12 @@ calcCRC16: function [
     /little {returns as little endian}
 ][
     action: either little [:reverse][:nihil]
-    seed: to-integer/unsigned INIT_SEED16
+    seed: INIT_SEED16
     ; seed = TBL_CRC16[(seed ^ buf[i++]) & 0xff] ^ (seed >> 8);
-    while [not tail? buf][
+    forall buf [
         index: 255 and+ (seed xor+ buf/1)
         ; C uses offset of 0, and Rebol uses 1
         seed: (shift seed -8) xor+ TBL_CRC16/(index + 1)
-        buf: next buf
     ]
     return action trim to binary! seed
 ]
