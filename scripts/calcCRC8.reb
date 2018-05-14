@@ -1,7 +1,7 @@
 Rebol [
 	file: %crc8.reb
 	notes: {based on https://blog.naver.com/pinggusoft/221258891786
-		>> rebol/build
+	    >> rebol/build
         == 12-May-2018/22:24:10
         >> rebol/commit
         == "04895e5cae2541c54f2a39030d50e6bb63e36e02"
@@ -10,7 +10,8 @@ Rebol [
 	author: "Graham"
 ]
 
-INIT_SEED8: #{77}
+INIT_SEED8: to-integer/unsigned #{77}
+
 crc8-table: [
     0 94 188 226 97 63 221 131 194 156 126 32 163 253 31 65
     157 195 33 127 252 162 64 30 95 1 227 189 62 96 130 220
@@ -33,12 +34,11 @@ crc8-table: [
 calcCRC8: function [
 	buf [binary!]
 ][
-	seed: to integer! INIT_SEED8
+	seed: INIT_SEED8
 	; seed = TBL_CRC8[(seed ^ buf[i++]) & 0xff];
-	while [not tail? buf][
-		index: 1 + ((buf/1 xor+ seed) and+ 255)
-		seed: crc8-table/:index
-		buf: next buf
+	forall buf [
+		index: ((buf/1 xor+ seed) and+ 255)
+		seed: crc8-table/(index + 1)
 	]
 	trim to binary! (255 and+ seed)
 ]
