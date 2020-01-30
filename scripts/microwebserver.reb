@@ -6,7 +6,7 @@ REBOL [
 ]
 
 crlf: #{0D0A}
-crlfcrlf: join crlf crlf
+crlf2bin: join crlf crlf
 
 code-map: make map! [200 "OK" 400 "Forbidden" 404 "Not Found"]
 
@@ -17,7 +17,7 @@ mime-map: make map! [
     "ico" "image/x-icon"
 ]
 
-error-template: trim/auto {
+error-template: trim/auto copy {
     <html><head><title>$code $text</title></head><body><h1>$text</h1>
     <p>Requested URI: <code>$uri</code></p><hr><i>shttpd.r</i> on
     <a href="http://www.rebol.com/rebol3/">REBOL 3</a> $r3</body></html>
@@ -48,9 +48,8 @@ send-chunk: func [port] [
     if not empty? port/locals [write port take/part port/locals 32'000]
 ]
 
-handle-request: func [config req <local> uri type file data] [
+handle-request: func [config req <local> uri type file data ext] [
     parse to-text req ["get " ["/ " | copy uri to " "]]
-    ;default 'uri "index.html"
     uri: default [%index.html]
     parse uri [some [thru "."] copy ext to end (type: :mime-map/:ext)]
     type: default ["application/octet-stream"]
@@ -63,15 +62,21 @@ awake-client: func [event <local> port res] [
     port: event/port
     switch event/type [
         'read [
-            either find port/data crlfcrlf [
+            either find port/data crlf2bin [
                 res: handle-request port/locals/config port/data
                 start-response port res
             ] [
                 read port
             ]
         ]
-        'wrote [if not send-chunk port [close port]]
-        'close [close port]
+        'wrote [
+            either empty? port/locals [
+                close port
+            ][
+                send-chunk port            
+            ]
+        ]
+        'close [close port print "event port closed"]
     ]
 ]
 
@@ -85,14 +90,13 @@ awake-server: func [event <local> client] [
 
 serve: func [web-port web-root <local> listen-port] [
     listen-port: open join tcp://: web-port
-    listen-port/locals: construct compose/deep [config: [root: (web-root)]]
+    listen-port/locals: make object! compose/deep [config: [root: (web-root)]]
     listen-port/awake: :awake-server
-
+    print spaced ["serving on port" web-port "..."]
     wait listen-port
 ]
 
-; example
+; example, uncomment everything below here
 ;web-port: 8081
-;print ["serving on port" web-port]
 ;serve web-port system/options/path
-test: does [ print "serving on port 8081" serve 8081 system/options/path]
+test: does [serve 8081 system/options/path]
