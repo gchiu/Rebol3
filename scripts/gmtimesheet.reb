@@ -21,6 +21,7 @@ for-each site [
   js-do site
 ]
 
+; places the JSZipUtils function named as loadFile in the DOM.
 js-do {window.loadFile = function(url,callback){
         JSZipUtils.getBinaryContent(url,callback);
     };
@@ -32,8 +33,6 @@ definput: function [ description def][
     if empty? temp [temp: def]
     return temp
 ]
-
-GST: 1.15
 
 ;; get the week ending.  Calculate a default for this week
 week_ending: 
