@@ -5,6 +5,10 @@ Rebol [
   
     Ask a few questions, then generate a JS function which we push to the DOM.
     This should convert the template docx to be filled with our data which you download
+    
+    source: https://docxtemplater.com/
+    docs: https://docxtemplater.readthedocs.io/en/latest/generate.html
+    
   }
 ]
 
