@@ -11,7 +11,8 @@ file: _
 case  [
   repo = "github" [file: to url!  unspaced [https://github.com/ user "/" project "/blob/master/index.reb"]]
   repo = "gitlab" [file: to url! unspaced [https://gitlab.com/ user "/" project "/-/blob/master/index.reb"]]
-  print "repo not found"
+  print "repo not found" halt
 ]
 
 print ["Your userfile (file) is at: " file]
+
