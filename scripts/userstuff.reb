@@ -9,7 +9,7 @@ if any [ empty? repo empty? user empty? project][quit]
 file: _
 
 case  [
-  repo = "github" [file:  unspaced [https://github.com/" user "/" project "/-/blob/master/index.reb"]
+  repo = "github" [file:  unspaced [https://github.com/" user "/" project "/blob/master/index.reb"]
   repo = "gitlab: [file: unspaced [https://gitlab.com/" user "/" project "/-/blob/master/index.reb"]
 ]
 
