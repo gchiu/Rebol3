@@ -158,7 +158,7 @@ Special internal defines used by RT, not Host-Kit developers:
 #define AGG_FREETYPE            //use freetype2 library for fonts by default
 #define INLINE
 
-#ifdef TO_MACOS
+#if defined(TO_MACOS) || defined(TO_OHOS)
 #define FINITE isfinite
 #else
 #define FINITE finite
@@ -177,6 +177,11 @@ Special internal defines used by RT, not Host-Kit developers:
 
 
 #ifdef TO_LINUX
+#undef INCLUDE_MIDI_DEVICE      // Not implemented!
+#define USE_SETENV 
+#endif
+
+#ifdef TO_OHOS					// HarmonyOS / OpenHarmony
 #undef INCLUDE_MIDI_DEVICE      // Not implemented!
 #define USE_SETENV 
 #endif

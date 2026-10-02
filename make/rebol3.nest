@@ -65,6 +65,16 @@ target-linux: [
 
 	library: %dl
 ]
+target-ohos: [
+	;HarmonyOS NEXT / OpenHarmony (aarch64-linux-ohos)
+	os:       ohos
+	sys:      linux
+	platform: OHOS
+	vendor:   ohos
+	compiler: clang
+
+	defines:  TO_OHOS
+]
 target-openbsd: [
 	os:       openbsd
 	sys:      openbsd
@@ -1306,6 +1316,12 @@ make-ext-test: [
 ]
 
 eggs: [
+	"Rebol/Base ohos-arm64" [
+		name:     %rebol3-base-ohos-arm64
+		:target-ohos
+		:make-arm64-exe
+	]
+
 	#if Windows? [
 ;		"Pre-make (minimum included)" [
 ;			pre-make
