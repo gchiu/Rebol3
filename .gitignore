@@ -25,6 +25,7 @@ src/tools/reb-lib-doc.txt
 reb-lib-doc.txt
 src/mezz/base-collected.reb
 src/generated/
+build-ohos/
 
 src/tests/httpd-root/logs/
 
