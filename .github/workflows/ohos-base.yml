@@ -31,7 +31,7 @@ jobs:
       # gitignored Rebol generated sources, compiles the 117 Base translation
       # units, and links both binaries with -Wl,--no-undefined.
       - name: Build OHOS Base via WSL
-        shell: powershell
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -Command ". '{0}'
         env:
           HOST_R3: ${{ vars.OHOS_HOST_R3 }}
         run: |
