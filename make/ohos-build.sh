@@ -8,25 +8,32 @@
 #     build-ohos/librebol-core-ohos.so   (REB_API shared library)
 #     build-ohos/rebol3-ohos             (REB_EXE host executable)
 #
-# Environment assumptions / required toolchain paths
-# --------------------------------------------------
-# Runs under WSL so that the Windows DevEco Studio native toolchain can be
-# executed directly. The exact toolchain that DevEco Studio uses (from the
-# generated CMake cache of the D:\R3OHOS project):
+# Two supported toolchain modes
+# -----------------------------
+# 1. Windows/WSL + DevEco Studio (defaults). The Windows clang.exe is driven
+#    through WSL interop, so paths are converted with wslpath:
+#      CC      <DEVECO_WSL>/hms/native/BiSheng/bin/clang.exe   (BiSheng clang)
+#      SYSROOT <DEVECO_WIN>/openharmony/native/sysroot
+#    HOST_R3 should be an r3.exe runnable from WSL.
 #
-#   compiler : <DEVECO_WIN>/hms/native/BiSheng/bin/clang.exe   (BiSheng clang)
-#   sysroot  : <DEVECO_WIN>/openharmony/native/sysroot
-#   target   : --target=aarch64-linux-ohos  (+ -D__MUSL__)
+# 2. Native Linux with an OpenHarmony SDK "native" component:
+#      CC      <sdk>/native/llvm/bin/clang
+#      SYSROOT <sdk>/native/sysroot          (derived from CC if omitted)
+#      HOST_R3 /path/to/linux/r3
+#
+# target: --target=aarch64-linux-ohos (+ -D__MUSL__), -Wl,--no-undefined
 #
 # A Rebol3 interpreter (3.6+, e.g. Oldes/Rebol3) is required only to run
-# pre-make.r3. Point HOST_R3 at it (e.g. a Windows r3.exe runnable from WSL).
+# pre-make.r3. Point HOST_R3 at it.
 #
 # Overridable environment variables:
+#   CC          C compiler/driver   (default: DevEco BiSheng clang.exe)
+#   SYSROOT     OHOS sysroot        (default: DevEco OpenHarmony sysroot)
 #   HOST_R3     Rebol3 executable for pre-make   (default: r3)
 #   DEVECO_WSL  DevEco SDK dir, WSL path         (default: /mnt/d/DevEco Studio/sdk/default)
 #   DEVECO_WIN  DevEco SDK dir, Windows path     (default: D:/DevEco Studio/sdk/default)
 #   WINREPO     Repo path, Windows/forward slash (default: derived via wslpath)
-#   R3ROOT      Repo path in R3 absolute form    (default: derived from WINREPO)
+#   R3ROOT      Repo path in R3 absolute form    (default: derived)
 #
 # Usage:  make/ohos-build.sh
 #
@@ -39,16 +46,28 @@ DEVECO_WIN="${DEVECO_WIN:-D:/DevEco Studio/sdk/default}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Windows-side, forward-slash path of the repo (D:/repos/rebol3) and the
-# R3 absolute form used inside the spec (/D/repos/rebol3).
-if [ -z "${WINREPO:-}" ]; then
-  command -v wslpath >/dev/null || { echo "wslpath not found; set WINREPO/R3ROOT manually" >&2; exit 1; }
-  WINREPO="$(wslpath -w "$REPO" | sed 's|\\|/|g')"
-fi
-R3ROOT="${R3ROOT:-/${WINREPO/:/}}"
+CC="${CC:-$DEVECO_WSL/hms/native/BiSheng/bin/clang.exe}"
 
-CLANG="$DEVECO_WSL/hms/native/BiSheng/bin/clang.exe"
-SYSROOT="$DEVECO_WIN/openharmony/native/sysroot"
+# Windows .exe drivers (the WSL/DevEco case) need Windows-style path arguments;
+# a native Linux driver needs Linux paths.
+case "$CC" in
+  *.exe|*.EXE)
+    command -v wslpath >/dev/null || { echo "wslpath not found; set WINREPO/R3ROOT manually" >&2; exit 1; }
+    WINREPO="${WINREPO:-$(wslpath -w "$REPO" | sed 's|\\|/|g')}"
+    PREPO="$WINREPO"
+    R3ROOT="${R3ROOT:-/${WINREPO/:/}}"
+    SYSROOT="${SYSROOT:-$DEVECO_WIN/openharmony/native/sysroot}"
+    ;;
+  *)
+    [ -n "${CC:-}" ] || { echo "native Linux mode requires CC=<clang> and SYSROOT=<sysroot>" >&2; exit 1; }
+    if [ -z "${SYSROOT:-}" ]; then
+      SYSROOT="$(cd "$(dirname "$CC")/../.." && pwd)/sysroot"
+    fi
+    [ -d "$SYSROOT" ] || { echo "SYSROOT not found: $SYSROOT (set CC and SYSROOT)" >&2; exit 1; }
+    PREPO="$REPO"
+    R3ROOT="${R3ROOT:-$REPO}"
+    ;;
+esac
 
 GEN_DIR="$REPO/src/generated"
 OBJ_DIR="$REPO/build-ohos/obj"
@@ -56,7 +75,7 @@ OUT_DIR="$REPO/build-ohos"
 SPEC_SRC="$SCRIPT_DIR/spec-ohos-base.reb"
 SPEC="$GEN_DIR/spec-ohos-base.reb"
 
-[ -x "$CLANG" ] || { echo "OHOS clang not found: $CLANG" >&2; exit 1; }
+[ -x "$CC" ] || { echo "OHOS clang not found: $CC" >&2; exit 1; }
 [ -f "$SPEC_SRC" ] || { echo "spec not found: $SPEC_SRC" >&2; exit 1; }
 
 mkdir -p "$GEN_DIR" "$OBJ_DIR"
@@ -66,7 +85,7 @@ mkdir -p "$GEN_DIR" "$OBJ_DIR"
 #--------------------------------------------------------------------------
 echo "== Regenerating Rebol headers/boot (Base/OHOS) =="
 sed "s|@REPO_ROOT@|$R3ROOT|" "$SPEC_SRC" > "$SPEC"
-"$HOST_R3" -qs "$WINREPO/make/pre-make.r3" "$WINREPO/src/generated/spec-ohos-base.reb"
+"$HOST_R3" -qs "$PREPO/make/pre-make.r3" "$PREPO/src/generated/spec-ohos-base.reb"
 
 #--------------------------------------------------------------------------
 # 2. Compile every Base translation unit for aarch64-linux-ohos
@@ -76,7 +95,7 @@ COMMON=(
   "--sysroot=$SYSROOT"
   -DTO_OHOS -DREB_API -DUNICODE -DENDIAN_LITTLE -D_FILE_OFFSET_BITS=64
   '-DREBOL_OPTIONS_FILE="gen-config.h"'
-  "-I$WINREPO/src/include"
+  "-I$PREPO/src/include"
   -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong
   -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack -Wformat -Werror=format-security
   -Wno-pointer-sign
@@ -88,26 +107,26 @@ mapfile -t FILES < <(grep -oE '%[A-Za-z0-9_./-]+\.c' "$SPEC_SRC" | tr -d '%' | s
 echo "== Compiling ${#FILES[@]} Base translation units =="
 for f in "${FILES[@]}"; do
   obj="${f//\//_}"
-  "$CLANG" "${COMMON[@]}" -c "$WINREPO/src/$f" -o "$WINREPO/build-ohos/obj/${obj%.c}.o"
+  "$CC" "${COMMON[@]}" -c "$PREPO/src/$f" -o "$PREPO/build-ohos/obj/${obj%.c}.o"
 done
 
 #--------------------------------------------------------------------------
 # 3. Link the REB_API shared library from the Base objects
 #--------------------------------------------------------------------------
 echo "== Linking librebol-core-ohos.so =="
-"$CLANG" --target=aarch64-linux-ohos --sysroot="$SYSROOT" -shared -fuse-ld=lld \
-  -Wl,--no-undefined -o "$WINREPO/build-ohos/librebol-core-ohos.so" \
-  "$WINREPO"/build-ohos/obj/*.o
+"$CC" --target=aarch64-linux-ohos --sysroot="$SYSROOT" -shared -fuse-ld=lld \
+  -Wl,--no-undefined -o "$PREPO/build-ohos/librebol-core-ohos.so" \
+  "$PREPO"/build-ohos/obj/*.o
 
 #--------------------------------------------------------------------------
 # 4. Link the REB_EXE host executable (adds os/host-main.c)
 #--------------------------------------------------------------------------
 echo "== Linking rebol3-ohos =="
-"$CLANG" "${COMMON[@]}" -DREB_EXE -c "$WINREPO/src/os/host-main.c" \
-  -o "$WINREPO/build-ohos/obj/host-main.o"
-"$CLANG" --target=aarch64-linux-ohos --sysroot="$SYSROOT" -fuse-ld=lld \
-  -Wl,--no-undefined -o "$WINREPO/build-ohos/rebol3-ohos" \
-  "$WINREPO"/build-ohos/obj/*.o
+"$CC" "${COMMON[@]}" -DREB_EXE -c "$PREPO/src/os/host-main.c" \
+  -o "$PREPO/build-ohos/obj/host-main.o"
+"$CC" --target=aarch64-linux-ohos --sysroot="$SYSROOT" -fuse-ld=lld \
+  -Wl,--no-undefined -o "$PREPO/build-ohos/rebol3-ohos" \
+  "$PREPO"/build-ohos/obj/*.o
 
 echo "== Done =="
 ls -l "$OUT_DIR/librebol-core-ohos.so" "$OUT_DIR/rebol3-ohos"
