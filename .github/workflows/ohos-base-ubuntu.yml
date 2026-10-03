@@ -72,7 +72,7 @@ jobs:
           "$clang_bin" --version
 
       - name: Build Base (117 TUs, --no-undefined)
-        run: make/ohos-build.sh
+        run: bash make/ohos-build.sh
 
       - name: Upload binaries
         uses: actions/upload-artifact@v5
