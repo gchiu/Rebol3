@@ -1,0 +1,85 @@
+name: 'OHOS Base (aarch64, ubuntu)'
+
+# Standard GitHub-hosted Ubuntu build of the Rebol3 Base port. Uses the public
+# OpenHarmony SDK "native" component (clang + sysroot) and a prebuilt Rebol3
+# Linux host for pre-make, so it needs no self-hosted runner, no Huawei login
+# and no signing material. The self-hosted workflow (ohos-base.yml) is
+# untouched and independent.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ harmonyos-port ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Rebol3 Base for aarch64-linux-ohos
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Official OpenHarmony 6.1 public SDK (linux + windows components).
+      OHOS_SDK_URL: https://repo.huaweicloud.com/openharmony/os/6.1-Release/ohos-sdk-windows_linux-public.tar.gz
+      OHOS_SDK_SHA256: b833b75a64ee46bbd7880921abbb49b733ec5c8171b6684c9b524d57f624cee0
+      # Rebol3 3.22.1 Linux x64 host, used only to run make/pre-make.r3.
+      # SHA-256 is the digest published by the GitHub Releases API.
+      R3_URL: https://github.com/Oldes/Rebol3/releases/download/3.22.1/rebol3-bulk-linux-x64_libc2_28.gz
+      R3_SHA256: 067e1dead273d59b94df18dc85ea666afb51bec8854003a4b2e82405eaecd259
+      OHOS_SDK_DIR: ${{ github.workspace }}/.ohos-sdk
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Cache OpenHarmony native SDK
+        id: sdk-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.OHOS_SDK_DIR }}
+          key: ohos-native-6.1.0.31
+
+      - name: Download and extract OpenHarmony native SDK
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          tmp="$RUNNER_TEMP/ohos"
+          mkdir -p "$tmp" "$OHOS_SDK_DIR"
+          curl -fSL --retry 3 -o "$tmp/sdk.tar.gz" "$OHOS_SDK_URL"
+          echo "$OHOS_SDK_SHA256  $tmp/sdk.tar.gz" | sha256sum -c -
+          tar -xzf "$tmp/sdk.tar.gz" -C "$tmp" --wildcards 'linux/native-linux-x64-*.zip'
+          unzip -q "$tmp"/linux/native-linux-x64-*.zip -d "$OHOS_SDK_DIR"
+          rm -rf "$tmp"
+
+      - name: Download Rebol3 host for pre-make
+        run: |
+          set -euo pipefail
+          curl -fSL --retry 3 -o "$RUNNER_TEMP/r3.gz" "$R3_URL"
+          echo "$R3_SHA256  $RUNNER_TEMP/r3.gz" | sha256sum -c -
+          gunzip -c "$RUNNER_TEMP/r3.gz" > "$RUNNER_TEMP/r3"
+          chmod +x "$RUNNER_TEMP/r3"
+          "$RUNNER_TEMP/r3" --version
+          echo "HOST_R3=$RUNNER_TEMP/r3" >> "$GITHUB_ENV"
+
+      - name: Locate OHOS toolchain
+        run: |
+          set -euo pipefail
+          clang_bin="$(find "$OHOS_SDK_DIR" -path '*/llvm/bin/clang' | head -n1)"
+          [ -n "$clang_bin" ] || { echo "clang not found under $OHOS_SDK_DIR" >&2; exit 1; }
+          native_dir="${clang_bin%/llvm/bin/clang}"
+          chmod +x "$clang_bin"
+          echo "CC=$clang_bin" >> "$GITHUB_ENV"
+          echo "SYSROOT=$native_dir/sysroot" >> "$GITHUB_ENV"
+          "$clang_bin" --version
+
+      - name: Build Base (117 TUs, --no-undefined)
+        run: make/ohos-build.sh
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v5
+        with:
+          name: rebol3-ohos-arm64
+          path: |
+            build-ohos/librebol-core-ohos.so
+            build-ohos/rebol3-ohos
+          if-no-files-found: error
+          retention-days: 14
