@@ -1,8 +1,8 @@
 name: 'OHOS Base (aarch64)'
 
-# Runs only on demand or on pushes to harmonyos-port. pull_request is
-# intentionally absent so untrusted/fork PRs never reach the self-hosted
-# runner that holds the DevEco/HarmonyOS toolchain.
+# Runs only on demand or on pushes to harmonyos-port.
+# pull_request is deliberately absent so untrusted PRs never
+# execute on the self-hosted machine.
 on:
   workflow_dispatch:
   push:
@@ -14,11 +14,15 @@ permissions:
 jobs:
   build:
     name: Rebol3 Base for aarch64-linux-ohos
-    # Self-hosted Windows runner with WSL, DevEco Studio and the HarmonyOS/
-    # OpenHarmony SDK (BiSheng clang). See make/ohos-build.sh for the toolchain
-    # paths, which can be overridden with DEVECO_WSL / DEVECO_WIN.
-    # A Rebol3 (3.6+) interpreter is required for pre-make; set the repository
-    # variable OHOS_HOST_R3 to its (WSL) path, or have `r3` on PATH.
+
+    # Self-hosted Windows runner with:
+    # - WSL
+    # - DevEco Studio
+    # - HarmonyOS/OpenHarmony SDK
+    # - BiSheng clang
+    #
+    # OHOS_HOST_R3 should contain the WSL path to a Rebol3
+    # interpreter used only for the pre-make generation step.
     runs-on: [ self-hosted, Windows ]
     timeout-minutes: 30
 
@@ -26,20 +30,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # make/ohos-build.sh must run inside WSL: it drives the Windows DevEco
-      # cross-toolchain through interop and uses wslpath. It regenerates the
-      # gitignored Rebol generated sources, compiles the 117 Base translation
-      # units, and links both binaries with -Wl,--no-undefined.
       - name: Build OHOS Base via WSL
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -Command ". '{0}'
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         env:
           HOST_R3: ${{ vars.OHOS_HOST_R3 }}
         run: |
           $hostR3 = if ($env:HOST_R3) { $env:HOST_R3 } else { 'r3' }
+
           $script = (Get-Item -LiteralPath 'make/ohos-build.sh').FullName
-          $wslScript = ((& wsl.exe wslpath -a "$script") | Out-String).Trim()
-          Write-Host "Script (WSL): $wslScript"
-          Write-Host "HOST_R3: $hostR3"
+
+          # Convert:
+          # D:\actions-runner\_work\Rebol3\Rebol3\make\ohos-build.sh
+          #
+          # to:
+          # /mnt/d/actions-runner/_work/Rebol3/Rebol3/make/ohos-build.sh
+
+          $drive = $script.Substring(0, 1).ToLower()
+          $rest = $script.Substring(2).Replace('\', '/')
+          $wslScript = "/mnt/${drive}${rest}"
+
+          Write-Host "Script (Windows): $script"
+          Write-Host "Script (WSL):     $wslScript"
+          Write-Host "HOST_R3:          $hostR3"
+
           & wsl.exe bash -lc "export HOST_R3='$hostR3'; bash '$wslScript'"
           exit $LASTEXITCODE
 
